@@ -249,7 +249,7 @@ export function BorrowPrintModal({
           </div>
 
           <div class="info-grid">
-            <div class="info-item"><span>Người mượn: </span><strong>${esc(request.owner_name) || '—'}</strong></div>
+            <div class="info-item"><span>Người mượn: </span><strong>${esc(request.owner_name) || '—'}</strong>${request.owner_email ? ` <span style="font-size: 11px; color: #555;">(${esc(request.owner_email)})</span>` : ''}</div>
             <div class="info-item"><span>Bộ phận / Team: </span><strong>${esc(request.department?.name) || '—'}</strong></div>
             <div class="info-item"><span>Dự án: </span><strong>${esc(request.project)}</strong></div>
             <div class="info-item"><span>Địa điểm: </span><strong>${esc(request.place) || '—'}</strong></div>
@@ -259,6 +259,10 @@ export function BorrowPrintModal({
             <div class="info-item full-width">
               <span>Mục đích: </span><span>${request.purpose === 'PERSONAL' ? 'Việc cá nhân' : 'Việc sản xuất công ty'}</span>
             </div>
+            ${request.note ? `
+            <div class="info-item full-width">
+              <span>Ghi chú mượn: </span><span>${esc(request.note)}</span>
+            </div>` : ''}
           </div>
 
           <div class="table-title">Danh sách thiết bị & Phụ kiện bàn giao</div>
@@ -418,6 +422,11 @@ export function BorrowPrintModal({
               <div>
                 <span className="text-slate-500">Người mượn: </span>
                 <strong className="text-black">{request.owner_name || '—'}</strong>
+                {request.owner_email && (
+                  <span className="ml-1 text-[11px] text-slate-500 font-normal">
+                    ({request.owner_email})
+                  </span>
+                )}
               </div>
               <div>
                 <span className="text-slate-500">Bộ phận / Team: </span>
@@ -443,6 +452,12 @@ export function BorrowPrintModal({
                   {request.purpose === 'PERSONAL' ? 'Việc cá nhân' : 'Việc sản xuất công ty'}
                 </span>
               </div>
+              {request.note && (
+                <div className="col-span-2 rounded-lg bg-slate-50 p-2 border border-slate-200">
+                  <span className="text-slate-500 font-medium">Ghi chú người mượn: </span>
+                  <span className="text-black font-normal">{request.note}</span>
+                </div>
+              )}
             </div>
 
             {/* BẢNG DANH SÁCH THIẾT BỊ */}

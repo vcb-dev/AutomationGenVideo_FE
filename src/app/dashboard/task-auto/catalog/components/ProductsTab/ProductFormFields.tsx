@@ -6,7 +6,7 @@ import { Plus, Loader2, Upload, X, Link as LinkIcon, Trash2 } from 'lucide-react
 import { cn, driveImageUrl } from '@/lib/utils'
 import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { MARKETS, SourceDraft } from './product-utils'
-import { uploadProductImage } from '@/lib/api/task-auto'
+import { uploadProductImage, type UploadMeta } from '@/lib/api/task-auto'
 import { SOURCE_TYPE_LABELS, SourceType } from '@/types/task-auto'
 
 // ── MarketBadge ───────────────────────────────────────
@@ -243,9 +243,11 @@ export interface MultiImagePickerHandle {
   resolvePending: (urls: string[]) => Promise<string[]>
 }
 
-export const MultiImagePicker = forwardRef<MultiImagePickerHandle, { values: string[]; onChange: (urls: string[]) => void }>(
-  function MultiImagePicker({ values, onChange }, ref) {
+export const MultiImagePicker = forwardRef<MultiImagePickerHandle, { values: string[]; onChange: (urls: string[]) => void; uploadMeta?: UploadMeta }>(
+  function MultiImagePicker({ values, onChange, uploadMeta }, ref) {
     const fileRef = useRef<HTMLInputElement>(null)
+    const uploadMetaRef = useRef(uploadMeta)
+    uploadMetaRef.current = uploadMeta
     const [showUrl, setShowUrl] = useState(false)
     const [urlInput, setUrlInput] = useState('')
     const [isDragging, setIsDragging] = useState(false)
@@ -329,7 +331,7 @@ export const MultiImagePicker = forwardRef<MultiImagePickerHandle, { values: str
         if (cached) return cached
         const file = pendingFiles.current.get(url)
         if (!file) return url
-        const { url: uploaded } = await uploadProductImage(file)
+        const { url: uploaded } = await uploadProductImage(file, uploadMetaRef.current)
         resolvedUrls.current.set(url, uploaded)
         return uploaded
       })),

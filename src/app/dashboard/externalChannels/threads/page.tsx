@@ -35,6 +35,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import BulkAddThreadsModal from '../components/BulkAddThreadsModal';
 import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
+import { hasPermission } from '@/lib/permissions';
 import {
   scraperService,
   ThreadsProfile,
@@ -66,6 +67,9 @@ const QUICK_TOPICS = [
 
 export default function ThreadsExternalPage() {
   const { token, user } = useAuthStore();
+  const canManageChannels =
+    (user?.roles?.some((r) => [UserRole.ADMIN, UserRole.LEADER, UserRole.MANAGER].includes(r as any)) ?? false) ||
+    hasPermission(user, 'social:external:add_channel');
   const router = useRouter();
   // Tìm theo tag tính phí theo bài (Apify) — BE chỉ cho ADMIN/LEADER.
   const canSearchByTag = user?.roles?.some((r) => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
@@ -579,8 +583,9 @@ export default function ThreadsExternalPage() {
       {/* ─── TAB 1: RADAR BÀI HOT & VIDEO ────────────────────────────────────── */}
       {activeMainTab === 'radar' && (
         <div className="flex flex-col gap-6">
-          {/* Search Box */}
-          <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
+          {/* Search Box — chỉ leader/admin/manager được quét bài hot tốn quota Apify */}
+          {canManageChannels && (
+            <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
             <div className="flex items-center gap-2 mb-3">
               <TrendUp size={20} className="text-primary font-bold" />
               <h2 className="text-sm font-semibold text-foreground">
@@ -765,6 +770,7 @@ export default function ThreadsExternalPage() {
               </div>
             </div>
           </div>
+          )}
 
           {/* View Switcher Bar */}
           <div className="flex flex-wrap items-center justify-between gap-3 bg-card border border-border rounded-xl p-3 shadow-sm">
@@ -1064,7 +1070,8 @@ export default function ThreadsExternalPage() {
       {activeMainTab === 'channels' && (
         <div className="flex flex-col gap-6">
           {/* Add / Scrape Channel Box */}
-          <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
+          {canManageChannels && (
+            <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
               <div className="flex items-center gap-2">
                 <SiThreads className="text-foreground text-xl" />
@@ -1188,6 +1195,7 @@ export default function ThreadsExternalPage() {
               </button>
             </form>
           </div>
+          )}
 
           {/* Filter Tabs & Channels List */}
           <div className="flex flex-col gap-4">
@@ -1282,10 +1290,10 @@ export default function ThreadsExternalPage() {
                       key={p.id}
                       profile={p}
                       onViewDetail={() => router.push(`/dashboard/externalChannels/threads/${p.id}`)}
-                      onScrape={() => scrapeMutation.mutate(p.username)}
-                      onToggleTracked={() => toggleMutation.mutate({ id: p.id, field: 'is_tracked', value: !p.is_tracked })}
+                      onScrape={canManageChannels ? () => scrapeMutation.mutate(p.username) : undefined}
+                      onToggleTracked={canManageChannels ? () => toggleMutation.mutate({ id: p.id, field: 'is_tracked', value: !p.is_tracked }) : undefined}
                       onToggleBookmark={() => toggleMutation.mutate({ id: p.id, field: 'is_bookmarked', value: !p.is_bookmarked })}
-                      onDelete={() => handleDelete(p.id, p.name || p.username, p.posts_count || 0)}
+                      onDelete={canManageChannels ? () => handleDelete(p.id, p.name || p.username, p.posts_count || 0) : undefined}
                     />
                   ))}
                 </div>

@@ -8,13 +8,24 @@ import { listCategories } from '@/lib/equipment/group-models';
 import { CONDITION_OPTIONS, STATUS_OPTIONS } from '@/lib/equipment/status-label';
 import { StatusPill } from '@/components/equipment/StatusPill';
 import { ConditionDot } from '@/components/equipment/ConditionDot';
-import { AddAssetDialog } from '@/components/equipment/AddAssetDialog';
-import { EditAssetDialog } from '@/components/equipment/EditAssetDialog';
-import { DeleteAssetDialog } from '@/components/equipment/DeleteAssetDialog';
-import { ManageLocationsDialog } from '@/components/equipment/ManageLocationsDialog';
-import { ManageCatalogDialog } from '@/components/equipment/ManageCatalogDialog';
+import dynamic from 'next/dynamic';
+import { EquipmentAlertBanner } from '@/components/equipment/EquipmentAlertBanner';
 import { canManageCatalog } from '@/lib/equipment/catalog-permissions';
 import { useAuthStore } from '@/store/auth-store';
+
+// Hộp thoại chỉ tải JS khi người dùng mở.
+const AddAssetDialog = dynamic(() => import('@/components/equipment/AddAssetDialog').then((m) => m.AddAssetDialog));
+const EditAssetDialog = dynamic(() => import('@/components/equipment/EditAssetDialog').then((m) => m.EditAssetDialog));
+const DeleteAssetDialog = dynamic(() => import('@/components/equipment/DeleteAssetDialog').then((m) => m.DeleteAssetDialog));
+const ManageLocationsDialog = dynamic(() =>
+  import('@/components/equipment/ManageLocationsDialog').then((m) => m.ManageLocationsDialog),
+);
+const ManageCatalogDialog = dynamic(() =>
+  import('@/components/equipment/ManageCatalogDialog').then((m) => m.ManageCatalogDialog),
+);
+const MobileBorrowQRModal = dynamic(() =>
+  import('@/components/equipment/MobileBorrowQRModal').then((m) => m.MobileBorrowQRModal),
+);
 
 /* Ba icon của cột Thao tác. Vẽ tay bằng SVG để không kéo thêm thư viện icon cho ba hình. */
 const EyeIcon = () => (
@@ -53,6 +64,7 @@ function EquipmentTable() {
   const [deleting, setDeleting] = useState<Asset | null>(null);
   const [managingLocations, setManagingLocations] = useState(false);
   const [managingCatalog, setManagingCatalog] = useState(false);
+  const [mobileQrOpen, setMobileQrOpen] = useState(false);
   // Thêm, sửa, xoá chỉ hiện cho leader và admin — BE trả 403 cho những vai trò còn lại.
   // Nút Xem thì ai cũng thấy: đọc kho không cần quyền gì.
   // Phải truyền cả `team`: quyền quản lý kho giờ gắn với Team Media, thiếu tham số này thì
@@ -130,14 +142,31 @@ function EquipmentTable() {
               </button>
             </>
           )}
+          <button
+            type="button"
+            onClick={() => setMobileQrOpen(true)}
+            title="Quét QR bằng điện thoại để tạo phiếu và chụp ảnh trực tiếp"
+            className="flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-blue-200 bg-blue-50/80 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100 active:scale-95 transition-all dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-300 shrink-0"
+          >
+            <span>📱</span> Quét QR tạo phiếu
+          </button>
+          <Link
+            href="/dashboard/equipment/borrow-history"
+            className="flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 transition-all dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08] shrink-0"
+          >
+            <span>📋</span> {canManageCatalog(user?.roles, user?.team) ? 'Nhật ký mượn' : 'Phiếu mượn của tôi'}
+          </Link>
           <Link
             href="/dashboard/equipment/new-request"
-            className="flex items-center justify-center whitespace-nowrap rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 transition-all dark:border-white/[0.12] dark:text-slate-200 dark:hover:bg-white/[0.05] shrink-0"
+            className="flex items-center justify-center whitespace-nowrap rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700 active:scale-95 transition-all shrink-0"
           >
-            Tạo phiếu mượn
+            + Tạo phiếu mượn
           </Link>
         </div>
       </header>
+
+      {/* CẢNH BÁO QUÁ HẠN & SẮP ĐẾN HẠN TRẢ */}
+      <EquipmentAlertBanner className="mb-4 sm:mb-6" />
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/[0.08] dark:bg-white/[0.03]">
         {/* BỘ LỌC TÌM KIẾM */}
@@ -206,6 +235,8 @@ function EquipmentTable() {
                     <img
                       src={photoSrc(a.photos[0].url)}
                       alt={a.model.name}
+                      loading="lazy"
+                      decoding="async"
                       className="h-16 w-16 shrink-0 rounded-xl border border-slate-200 object-cover shadow-sm dark:border-white/[0.08]"
                     />
                   ) : (
@@ -237,6 +268,7 @@ function EquipmentTable() {
                     <div className="flex items-center gap-1 pt-1.5">
                       <Link
                         href={`/dashboard/equipment/assets/${encodeURIComponent(a.asset_code)}`}
+                        prefetch={false}
                         aria-label={`Xem chi tiết ${a.asset_code}`}
                         className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-500 active:bg-blue-50 active:text-blue-600 dark:border-white/[0.1] dark:text-slate-400"
                       >
@@ -303,6 +335,8 @@ function EquipmentTable() {
                           <img
                             src={photoSrc(a.photos[0].url)}
                             alt={a.model.name}
+                            loading="lazy"
+                            decoding="async"
                             className="h-10 w-10 rounded-lg border border-slate-200 object-cover shadow-sm dark:border-white/[0.08]"
                           />
                         ) : (
@@ -335,6 +369,7 @@ function EquipmentTable() {
                         <div className="flex items-center justify-end gap-1">
                           <Link
                             href={`/dashboard/equipment/assets/${encodeURIComponent(a.asset_code)}`}
+                            prefetch={false}
                             title={`Xem chi tiết ${a.asset_code}`}
                             aria-label={`Xem chi tiết ${a.asset_code}`}
                             className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 hover:bg-blue-50 hover:text-blue-600 dark:text-slate-400 dark:hover:bg-blue-500/10 dark:hover:text-blue-400 transition-colors"
@@ -407,6 +442,14 @@ function EquipmentTable() {
             setDeleting(null);
             load();
           }}
+        />
+      )}
+
+      {/* MODAL QUÉT MÃ QR TẠO PHIẾU BẰNG ĐIỆN THOẠI */}
+      {mobileQrOpen && (
+        <MobileBorrowQRModal
+          open={mobileQrOpen}
+          onClose={() => setMobileQrOpen(false)}
         />
       )}
     </div>

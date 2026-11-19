@@ -16,9 +16,10 @@ import { Pagination, PAGE_SIZE } from '@/components/task-auto/Pagination'
 import { HeaderFilterDropdown } from '@/components/task-auto/HeaderFilterDropdown'
 import {
   getTeamSources, addTeamSource, updateTeamSource, removeTeamSource,
-  pushTeamSourceToGlobal, getSources, getTeams, getTeamProducts,
+  pushTeamSourceToGlobal, getSources, getTeams, getTeamProducts, ALL_TEAMS_ID,
 } from '@/lib/api/task-auto'
 import { TeamSource, Source, SOURCE_TYPE_LABELS, SourceType } from '@/types/task-auto'
+import { TeamTag } from './TeamTag'
 import { SourceViewModal } from '@/components/task-auto/SourceViewModal'
 import { NasLinkCell } from '@/components/task-auto/NasLinkCell'
 
@@ -53,8 +54,8 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
   const [modal, setModal]           = useState<null | 'add' | 'edit'>(null)
   const [viewingSource, setViewingSource] = useState<TeamSource | null>(null)
   const [addMode, setAddMode]       = useState<AddMode>('manual')
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [pushingId, setPushingId]   = useState<string | null>(null)
+  const [deletingSource, setDeletingSource] = useState<TeamSource | null>(null)
+  const [pushingSource, setPushingSource]   = useState<TeamSource | null>(null)
   const [editing, setEditing]       = useState<TeamSource | null>(null)
 
   const [formBrandType, setFormBrandType] = useState<'DO_DA' | 'TRANG_SUC'>(brandType)
@@ -74,9 +75,15 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
   })
 
   const canSelectAnyTeam = isAdminOrManager || isScaleData
+  // Chỉ ADMIN/MANAGER xem gộp được mọi team (BE chặn role khác) — Scale Data/MEDIA vẫn chọn từng team
   const teamOptions = canSelectAnyTeam
-    ? [{ value: '', label: '— Chọn team —' }, ...(teams ?? []).map(t => ({ value: t.id, label: t.name }))]
+    ? [{ value: '', label: isAdminOrManager ? 'Tất cả đội nhóm' : '— Chọn team —' }, ...(teams ?? []).map(t => ({ value: t.id, label: t.name }))]
     : (teams ?? []).map(t => ({ value: t.id, label: t.name }))
+
+  const isAllTeams = isAdminOrManager && !selectedTeamId
+  const listTeamId = isAllTeams ? ALL_TEAMS_ID : selectedTeamId
+  const listBrandType = isAllTeams ? undefined : brandType
+  const teamNameById = new Map((teams ?? []).map(t => [t.id, t.name]))
 
   const selectedTeam = teams?.find(t => t.id === selectedTeamId)
   const isLeaderOfSelected = selectedTeam?.leader_id === userId
@@ -86,12 +93,12 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
   const canPushToGlobal    = isAdminOrManager || isScaleData || isLeaderOfSelected
 
   const { data: page1Data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'team-sources', selectedTeamId, brandType, month, search, typeFilter, addedByFilter, page],
-    queryFn: () => getTeamSources(selectedTeamId, {
-      brand_type: brandType, month, page, limit: PAGE_SIZE,
+    queryKey: ['task-auto', 'team-sources', listTeamId, listBrandType, month, search, typeFilter, addedByFilter, page],
+    queryFn: () => getTeamSources(listTeamId, {
+      brand_type: listBrandType, month, page, limit: PAGE_SIZE,
       search: search || undefined, type: (typeFilter || undefined) as SourceType | undefined, added_by_id: addedByFilter || undefined,
     }),
-    enabled: !!selectedTeamId,
+    enabled: !!listTeamId,
   })
   const sources = page1Data?.data ?? []
   const total = page1Data?.total ?? 0
@@ -109,19 +116,22 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
   const typeOptions = (Object.keys(SOURCE_TYPE_LABELS) as SourceType[])
     .map(value => ({ value, label: SOURCE_TYPE_LABELS[value] }))
     .sort((a, b) => a.label.localeCompare(b.label, 'vi'))
-  const teamPeople = [
-    ...(selectedTeam?.leader ? [selectedTeam.leader] : []),
-    ...(selectedTeam?.members ?? []).map(m => m.user).filter((u): u is NonNullable<typeof u> => !!u),
-  ]
+  const peopleTeams = isAllTeams ? (teams ?? []) : selectedTeam ? [selectedTeam] : []
+  const teamPeople = peopleTeams.flatMap(t => [
+    ...(t.leader ? [t.leader] : []),
+    ...(t.members ?? []).map(m => m.user).filter((u): u is NonNullable<typeof u> => !!u),
+  ])
   const addedByOptions = Array.from(new Map(teamPeople.map(u => [u.id, { id: u.id, name: u.full_name }])).values())
     .sort((a, b) => a.name.localeCompare(b.name, 'vi'))
 
-  useEffect(() => { setPage(1) }, [selectedTeamId, brandType, month, search, typeFilter, addedByFilter])
+  useEffect(() => { setPage(1) }, [listTeamId, listBrandType, month, search, typeFilter, addedByFilter])
 
+  // Team chứa source đang sửa (khi xem tất cả đội nhóm), còn lại là team đang chọn
+  const formTeamId = editing?.team_id ?? selectedTeamId
   const { data: productsForSelect } = useQuery({
-    queryKey: ['task-auto', 'team-products-select', selectedTeamId],
-    queryFn: () => getTeamProducts(selectedTeamId),
-    enabled: modal !== null && !!selectedTeamId,
+    queryKey: ['task-auto', 'team-products-select', formTeamId],
+    queryFn: () => getTeamProducts(formTeamId),
+    enabled: modal !== null && !!formTeamId,
   })
 
   const { data: globalSourcesData, isLoading: loadingGlobal } = useQuery({
@@ -139,7 +149,7 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
     setEditing(null)
   }
 
-  const refetchKey = ['task-auto', 'team-sources', selectedTeamId, brandType]
+  const refetchKey = ['task-auto', 'team-sources', listTeamId, listBrandType]
 
   const addMut = useMutation({
     mutationFn: (data: Parameters<typeof addTeamSource>[1]) => addTeamSource(selectedTeamId, data),
@@ -152,11 +162,11 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
   })
 
   const updateMut = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: Partial<TeamSource> }) =>
-      updateTeamSource(selectedTeamId, id, body),
-    onSuccess: async (_, { id }) => {
-      const updated = await qc.fetchQuery({ queryKey: refetchKey, queryFn: () => getTeamSources(selectedTeamId, { brand_type: brandType }) }).catch(() => null)
-      const fresh = (updated as TeamSource[] | null)?.find(s => s.id === id)
+    mutationFn: ({ source, body }: { source: TeamSource; body: Partial<TeamSource> }) =>
+      updateTeamSource(source.team_id, source.id, body),
+    // BE trả về source đã cập nhật kèm đủ quan hệ (teamSourceInclude) — mở lại modal chi tiết bằng
+    // chính bản đó, không cần tải lại cả kho (kho gộp mọi team có thể rất lớn).
+    onSuccess: async (fresh) => {
       await qc.refetchQueries({ queryKey: refetchKey })
       toast.success('Đã cập nhật source')
       setModal(null)
@@ -166,29 +176,29 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
   })
 
   const deleteMut = useMutation({
-    mutationFn: (id: string) => removeTeamSource(selectedTeamId, id),
+    mutationFn: (s: TeamSource) => removeTeamSource(s.team_id, s.id),
     onSuccess: async () => {
       await qc.refetchQueries({ queryKey: refetchKey })
       toast.success('Đã xóa source')
-      setDeletingId(null)
+      setDeletingSource(null)
     },
     onError: (e: any) => {
       toast.error(e?.response?.data?.message || 'Không thể xóa source')
-      setDeletingId(null)
+      setDeletingSource(null)
     },
   })
 
   const pushMut = useMutation({
-    mutationFn: (id: string) => pushTeamSourceToGlobal(selectedTeamId, id),
-    onSuccess: async (_, id) => {
+    mutationFn: (s: TeamSource) => pushTeamSourceToGlobal(s.team_id, s.id),
+    onSuccess: async () => {
       await qc.refetchQueries({ queryKey: refetchKey })
       await qc.refetchQueries({ queryKey: ['task-auto', 'sources'] })
       toast.success('Đã đẩy source ra kho tổng')
-      setPushingId(null)
+      setPushingSource(null)
     },
     onError: (e: any) => {
       toast.error(e?.response?.data?.message || 'Không thể đẩy source')
-      setPushingId(null)
+      setPushingSource(null)
     },
   })
 
@@ -225,7 +235,7 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
       is_active:       form.is_active ?? true,
     }
     if (modal === 'add') addMut.mutate(body)
-    else if (editing)   updateMut.mutate({ id: editing.id, body })
+    else if (editing)   updateMut.mutate({ source: editing, body })
   }
 
   const toggleGlobalId = (id: string) =>
@@ -275,9 +285,9 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Tìm kiếm source..."
+              placeholder="Tìm kiếm tên, code source, tên sản phẩm..."
               className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-base text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
-              disabled={!selectedTeamId}
+              disabled={!listTeamId}
             />
           </div>
 
@@ -299,23 +309,29 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
         </div>
       </div>
 
-      {!selectedTeamId && <EmptyState icon={Radio} title="Chọn team để xem kho source" />}
+      {!listTeamId && <EmptyState icon={Radio} title="Chọn team để xem kho source" />}
 
-      {selectedTeamId && (
+      {listTeamId && (
         <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
           {isLoading ? (
             <div className="flex justify-center items-center py-16">
               <Loader2 className="w-7 h-7 animate-spin text-indigo-500" />
             </div>
           ) : sources.length === 0 ? (
-            <EmptyState icon={Radio} title="Team chưa có source nào"
-              description={canManageSelected ? 'Nhấn "Thêm Source" để thêm source vào kho của team.' : 'Chưa có source nào được thêm vào kho team.'} />
+            isAllTeams ? (
+              <EmptyState icon={Radio} title="Chưa team nào có source"
+                description="Chọn một đội nhóm để thêm source vào kho của team đó." />
+            ) : (
+              <EmptyState icon={Radio} title="Team chưa có source nào"
+                description={canManageSelected ? 'Nhấn "Thêm Source" để thêm source vào kho của team.' : 'Chưa có source nào được thêm vào kho team.'} />
+            )
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="bg-slate-50 border-b-2 border-gray-200">
                     <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Tên source</th>
+                    {isAllTeams && <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 whitespace-nowrap">Team</th>}
                     <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 whitespace-nowrap">
                       <HeaderFilterDropdown
                         label="Loại"
@@ -359,6 +375,11 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
                           <span className="text-xs text-violet-400 mt-0.5 block">· từ kho cá nhân</span>
                         )}
                       </td>
+                      {isAllTeams && (
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          <TeamTag name={teamNameById.get(s.team_id)} className="max-w-[160px]" />
+                        </td>
+                      )}
                       <td className="px-5 py-4 whitespace-nowrap">
                         {sType ? (
                           <span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold', SOURCE_TYPE_COLORS[sType])}>
@@ -409,7 +430,7 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
                         {canManageSelected && (
                           <div className="flex items-center justify-end gap-1">
                             {canPushToGlobal && (
-                              <button onClick={() => setPushingId(s.id)} title="Đẩy ra kho tổng"
+                              <button onClick={() => setPushingSource(s)} title="Đẩy ra kho tổng"
                                 className="p-2.5 rounded-xl hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition-colors">
                                 <ArrowUpToLine className="w-4 h-4" />
                               </button>
@@ -418,7 +439,7 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
                               className="p-2.5 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors">
                               <Edit2 className="w-4 h-4" />
                             </button>
-                            <button onClick={() => setDeletingId(s.id)} title="Xóa"
+                            <button onClick={() => setDeletingSource(s)} title="Xóa"
                               className="p-2.5 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors">
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -439,26 +460,26 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
       )}
 
       <ConfirmDialog
-        open={!!deletingId}
+        open={!!deletingSource}
         title="Xóa source"
-        message="Source này sẽ bị xóa khỏi kho team. Hành động không thể hoàn tác."
+        message={`Source này sẽ bị xóa khỏi kho team${isAllTeams && deletingSource ? ` ${teamNameById.get(deletingSource.team_id) ?? ''}` : ''}. Hành động không thể hoàn tác.`}
         confirmLabel="Xóa source"
         danger
         isLoading={deleteMut.isPending}
-        onConfirm={() => deletingId && deleteMut.mutate(deletingId)}
-        onCancel={() => setDeletingId(null)}
+        onConfirm={() => deletingSource && deleteMut.mutate(deletingSource)}
+        onCancel={() => setDeletingSource(null)}
       />
 
       <ConfirmDialog
-        open={!!pushingId}
+        open={!!pushingSource}
         title="Đẩy source ra kho tổng"
-        message={pushingId && sources.find(s => s.id === pushingId)?.source_source_id
+        message={pushingSource?.source_source_id
           ? 'Source sẽ cập nhật lại source gốc trong kho tổng.'
           : 'Source sẽ được tạo mới trong kho tổng và liên kết lại.'}
         confirmLabel="Đẩy ra kho tổng"
         isLoading={pushMut.isPending}
-        onConfirm={() => pushingId && pushMut.mutate(pushingId)}
-        onCancel={() => setPushingId(null)}
+        onConfirm={() => pushingSource && pushMut.mutate(pushingSource)}
+        onCancel={() => setPushingSource(null)}
       />
 
       {/* ─── Modal Chi tiết Source ─── */}
@@ -472,8 +493,8 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
           canPushToGlobal={canPushToGlobal}
           onClose={() => setViewingSource(null)}
           onEdit={() => { setViewingSource(null); openEdit(viewingSource) }}
-          onDelete={() => { setViewingSource(null); setDeletingId(viewingSource.id) }}
-          onPushToGlobal={() => { setViewingSource(null); setPushingId(viewingSource.id) }}
+          onDelete={() => { setViewingSource(null); setDeletingSource(viewingSource) }}
+          onPushToGlobal={() => { setViewingSource(null); setPushingSource(viewingSource) }}
         />
       )}
 
@@ -570,7 +591,7 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input autoFocus type="text" value={globalSearch} onChange={e => setGlobalSearch(e.target.value)}
-                  placeholder="Tìm tên hoặc code source..."
+                  placeholder="Tìm tên, code source, tên sản phẩm..."
                   className="w-full pl-9 pr-9 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 {globalSearch && (
                   <button onClick={() => setGlobalSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">

@@ -66,6 +66,23 @@ export function drivePreviewUrl(url: string | null | undefined): string | null {
   return `https://drive.google.com/file/d/${id}/preview`;
 }
 
+const R2_TASK_VIDEO_RE = /\/task-auto\/(?:[^/?#]+\/)?videos\//;
+
+export function isR2TaskVideoUrl(url: string | null | undefined): boolean {
+  return !!url && R2_TASK_VIDEO_RE.test(url) && !url.includes('drive.google.com');
+}
+
+export function isUploadedTaskVideoUrl(url: string | null | undefined): boolean {
+  return !!url && (url.includes('drive.google.com') || isR2TaskVideoUrl(url));
+}
+
+export function videoThumbnailUrl(url: string | null | undefined, sz = 400): string | null {
+  if (!url) return null;
+  if (url.includes('drive.google.com')) return driveImageUrl(url, sz);
+  if (isR2TaskVideoUrl(url)) return url.replace(/\/([^/?#]+)\.[^./?#]+(?=[?#]|$)/, '/thumb/$1.jpg');
+  return null;
+}
+
 /** Convert bất kỳ Google Drive URL nào sang direct stream URL để dùng trong <audio src>. */
 export function driveDirectUrl(url: string | null | undefined): string | null {
   if (!url) return null;

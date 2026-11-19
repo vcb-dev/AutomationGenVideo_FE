@@ -19,12 +19,10 @@ const APPROVED = {
 };
 
 describe('approvalOutcome', () => {
-  it('đủ chữ ký thì dẫn thẳng sang bước chuẩn bị, kèm đúng phiếu vừa ký', () => {
-    // Màn chuẩn bị tự lấy phiếu đầu danh sách, nên phải gắn id vào đường dẫn — không thì
-    // người ký sang tới nơi lại đang soạn một phiếu khác.
+  it('đủ chữ ký thì dẫn thẳng sang bước bàn giao, kèm đúng phiếu vừa ký', () => {
     expect(approvalOutcome(APPROVED)).toMatchObject({
       kind: 'ready-to-prepare',
-      nextHref: '/dashboard/equipment/prepare?request=req-1',
+      nextHref: '/dashboard/equipment/handover?request=req-1',
     });
   });
 

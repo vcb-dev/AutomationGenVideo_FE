@@ -16,7 +16,7 @@ import { useAuthStore } from "@/store/auth-store";
 import { useSearchParams, useRouter } from "next/navigation";
 import { UserRole } from "@/types/auth";
 import { useActivityData } from "./hooks/useActivityData";
-import { useActivityFilters, CARDS_PER_BATCH, CHECKLIST_PAGE_SIZE } from "./hooks/useActivityFilters";
+import { useActivityFilters, thisMonthRange, CARDS_PER_BATCH, CHECKLIST_PAGE_SIZE } from "./hooks/useActivityFilters";
 import PerformanceTab from "./components/Performancetab";
 import { OutstandingTab } from "./components/Outstandingtab";
 import { DailyReportTab } from "./components/report/Dailyreporttab";
@@ -156,13 +156,20 @@ const UserActivityPageContent = () => {
         checklistPage, setChecklistPage,
         checklistRoleFilter,
         loadMoreRef,
-    } = useActivityFilters();
+    } = useActivityFilters(activeTab === "ranking" ? "this_month" : "today");
+
+    // Bảng xếp hạng mặc định xem theo tháng này; các tab khác giữ mặc định "Hôm nay".
+    React.useEffect(() => {
+        if (activeTab !== "ranking" || timeType !== "today") return;
+        setTimeType("this_month");
+        setDateRange(thisMonthRange());
+    }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const deferredSearchName = useDeferredValue(searchName);
 
     const {
         reports, summary, rankings,
-        teamContributions, groupContributions,
+        teamContributions, groupContributions, teamRegions,
         reportOutstandings, kpiMeta,
         loading, isFetching, userRole, userTeam,
         personalHistory, fetchReports, fetchHistory,
@@ -251,12 +258,14 @@ const UserActivityPageContent = () => {
         const globals: string[] = [], vns: string[] = [];
         const GLOBAL_KEYWORDS = ["global", "jp", "thái lan", "đài loan", "indo"];
         allKnownTeams.forEach((teamName) => {
-            const isGlobal = GLOBAL_KEYWORDS.some((kw) => teamName.toLowerCase().includes(kw));
+            const isGlobal = teamRegions[teamName]
+                ? teamRegions[teamName] === "global"
+                : GLOBAL_KEYWORDS.some((kw) => teamName.toLowerCase().includes(kw));
             if (isGlobal && !globals.includes(teamName)) globals.push(teamName);
             else if (!isGlobal && !vns.includes(teamName)) vns.push(teamName);
         });
         return { globalTeams: globals.sort(), vnTeams: vns.sort() };
-    }, [allKnownTeams]);
+    }, [allKnownTeams, teamRegions]);
 
     // "Global Thái Lan" (tên cũ, không số) được coi là alias cho cả hai sub-team mới.
     // normTeam() đã tự bỏ dấu gạch ngang/khoảng trắng nên không cần liệt kê các biến thể gạch ngang nữa.
@@ -477,12 +486,13 @@ const UserActivityPageContent = () => {
                     activeTab !== "daily_outstanding" && (
                         <div className="relative z-10 transition-all duration-500 space-y-2">
                             {loading && !summary ? (
-                                <KpiCardsSkeleton count={5} />
+                                <KpiCardsSkeleton count={4} />
                             ) : (
                                 <ActivityKPIs
                                     summary={summary}
                                     teamContributions={teamContributions}
                                     groupContributions={groupContributions}
+                                    hideRegionBreakdown={!["All", "All Global", "All VN"].includes(activeTeam)}
                                 />
                             )}
                         </div>
@@ -516,7 +526,7 @@ const UserActivityPageContent = () => {
                             }}
                         />
                     ) : activeTab === "ranking" ? (
-                        <RankingView rankings={rankings} />
+                        <RankingView rankings={rankings} dateRange={dateRange} />
                     ) : activeTab === "personal" ? (
                         <div className="space-y-12">
                             <PersonalCharts

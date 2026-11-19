@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import toast from 'react-hot-toast';
-import { Loader2, Wand2, WifiOff, RefreshCw, FileDown } from 'lucide-react';
+import { Loader2, Wand2, WifiOff, RefreshCw, FileDown, Printer } from 'lucide-react';
 import apiClient from '@/lib/api-client';
-import { IdPhotoPosition } from './constants';
+import { IdPhotoOutfitType, IdPhotoPosition, OUTFIT_TYPE_OPTIONS } from './constants';
 import { EmployeeInfoFields, EmployeeInfoValues, isEmployeeInfoValid } from './EmployeeInfoFields';
 import { BulkEmployeeCard, BulkPersonRow, BulkCardModel } from './BulkEmployeeCard';
 import { BulkResultGrid } from './BulkResultGrid';
@@ -13,6 +13,12 @@ import { CROP_DEFAULT, CropTransform } from './crop-math';
 import {
   uploadBatchImages,
   createBatch,
+  buildCreateBatchBody,
+  batchCreateErrorMessage,
+  downloadPrintSheet,
+  printSheetIds,
+  triggerBlobDownload,
+  PRINT_SHEET_MAX_CARDS,
   pollIdPhotoBatch,
   retryBatchPerson,
   remergeBatchPerson,
@@ -60,8 +66,8 @@ const uploadOne = async (file: File): Promise<string> => {
   return res.data.uploadId;
 };
 
-const postCreateBatch = async (people: BatchCreatePerson[]) => {
-  const res = await apiClient.post('/id-photo/batch', { people });
+const postCreateBatch = async (people: BatchCreatePerson[], outfitType: IdPhotoOutfitType) => {
+  const res = await apiClient.post('/id-photo/batch', buildCreateBatchBody(people, outfitType));
   return res.data as { batchJobId: string };
 };
 
@@ -73,6 +79,7 @@ const getBatchStatus = async (batchJobId: string): Promise<BatchStatusResponse> 
 export function BulkTab() {
   const [phase, setPhase] = useState<Phase>('editing');
   const [cards, setCards] = useState<BulkCardModel[]>(() => [emptyCard()]);
+  const [outfitType, setOutfitType] = useState<IdPhotoOutfitType>('office');
 
   const [batchStatus, setBatchStatus] = useState<BatchStatusResponse | null>(null);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
@@ -87,6 +94,7 @@ export function BulkTab() {
   // trả về (nếu không: rời tab rồi quay lại là màn trống ~1-4s cho tới khi API xong).
   const [resuming, setResuming] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportingPrint, setExportingPrint] = useState(false);
 
   // Khoá đồng bộ chống double-submit (state disable chỉ có tác dụng ở render sau).
   const submittingRef = useRef(false);
@@ -256,7 +264,7 @@ export function BulkTab() {
         setUploadHint(`Đang tải ảnh ${p.done}/${p.total} — ${p.name}`),
       );
       setUploadHint('Đang khởi tạo batch...');
-      const batchJobId = await createBatch(postCreateBatch, people);
+      const batchJobId = await createBatch((p) => postCreateBatch(p, outfitType), people);
 
       saveActiveBatch({ batchJobId, startedAt: Date.now() });
       // Hiện lưới N ô PENDING ngay, chờ poll đầu tiên thay bằng dữ liệu thật.
@@ -283,7 +291,8 @@ export function BulkTab() {
       startPolling(batchJobId);
     } catch (err: any) {
       setPhase('editing');
-      toast.error(err instanceof BatchError ? err.message : 'Tạo batch thất bại, vui lòng thử lại.');
+      // BE nêu rõ người nào lỗi (vd "Ảnh của người thứ 2 … hết hạn") — hiện nguyên văn thay vì câu chung.
+      toast.error(batchCreateErrorMessage(err));
     } finally {
       submittingRef.current = false;
       setUploadHint(null);
@@ -419,6 +428,28 @@ export function BulkTab() {
     }
   };
 
+  // ── File in A4: 9 thẻ CR80/tờ có vạch cắt, chỉ người SUCCESS ─────────────
+  const handleExportPrintSheet = async () => {
+    if (!batchStatus || exportingPrint) return;
+    setExportingPrint(true);
+    const loading = toast.loading('Đang dựng file in A4...');
+    try {
+      const { blob, exported, skipped } = await downloadPrintSheet(
+        (path, body) => apiClient.post(path, body, { responseType: 'blob' }),
+        printSheetIds(batchStatus.people),
+      );
+      triggerBlobDownload(blob, `anh-the-file-in-a4-${batchStatus.id.slice(0, 8)}.pdf`);
+      toast.success(
+        skipped > 0 ? `Đã xuất file in ${exported} thẻ (bỏ qua ${skipped} thẻ chưa có ảnh).` : `Đã xuất file in ${exported} thẻ.`,
+        { id: loading, duration: 6000 },
+      );
+    } catch (err: any) {
+      toast.error(err instanceof BatchError ? err.message : 'Xuất file in thất bại, vui lòng thử lại.', { id: loading });
+    } finally {
+      setExportingPrint(false);
+    }
+  };
+
   const startOver = () => {
     pollReqRef.current += 1;
     clearActiveBatch();
@@ -469,6 +500,31 @@ export function BulkTab() {
       <div className="space-y-3">
         {showForm ? (
           <>
+            <div>
+              <p className="mb-2 text-sm font-bold text-[#1b1b1d]">Đồng phục cho cả lô</p>
+              <div className="grid grid-cols-2 gap-3">
+                {OUTFIT_TYPE_OPTIONS.map((opt) => {
+                  const selected = outfitType === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      disabled={submitting}
+                      onClick={() => setOutfitType(opt.value)}
+                      className={`text-left px-4 py-3 rounded-xl border transition-colors disabled:opacity-60 ${
+                        selected ? 'border-[#4441cc] bg-[#4441cc]/5' : 'border-[#d5d3e0] hover:border-[#4441cc]/60'
+                      }`}
+                    >
+                      <p className={`text-sm font-semibold ${selected ? 'text-[#4441cc]' : 'text-[#1b1b1d]'}`}>
+                        {opt.label}
+                      </p>
+                      <p className="text-xs text-[#9c9aa8] mt-0.5">{opt.description}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             <div className="space-y-4">
               {cards.map((c, i) => (
                 <BulkEmployeeCard
@@ -556,6 +612,20 @@ export function BulkTab() {
                     >
                       {exportingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
                       {exportingPdf ? 'Đang dựng PDF...' : `Xuất PDF hàng loạt (${batchStatus.counts.success} ảnh)`}
+                    </button>
+                  )}
+                  {batchStatus.counts.success > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleExportPrintSheet}
+                      disabled={exportingPrint}
+                      title="File A4 gửi nhà in: 9 thẻ đúng cỡ CR80 mỗi tờ, có vạch cắt"
+                      className="rounded-xl border border-[#4441cc] px-4 py-2.5 text-sm font-bold text-[#4441cc] hover:bg-[#4441cc]/5 disabled:opacity-50 inline-flex items-center gap-2"
+                    >
+                      {exportingPrint ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+                      {exportingPrint
+                        ? 'Đang dựng file in...'
+                        : `Xuất file in A4 (${Math.min(batchStatus.counts.success, PRINT_SHEET_MAX_CARDS)} thẻ)`}
                     </button>
                   )}
                   <button

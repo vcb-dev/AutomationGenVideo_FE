@@ -11,6 +11,8 @@ interface WorkflowSuccessModalProps {
   nextHref: string;
   nextLabel: string;
   stayLabel?: string;
+  onPrint?: () => void;
+  printLabel?: string;
 }
 
 /**
@@ -26,6 +28,8 @@ export function WorkflowSuccessModal({
   nextHref,
   nextLabel,
   stayLabel = 'Ở lại trang này',
+  onPrint,
+  printLabel = 'In phiếu bàn giao (A4 / Ký nhận)',
 }: WorkflowSuccessModalProps) {
   if (!open) return null;
 
@@ -72,8 +76,21 @@ export function WorkflowSuccessModal({
           </p>
         </div>
 
+        {/* Nút in phiếu nếu có */}
+        {onPrint && (
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={onPrint}
+              className="w-full flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50/80 px-4 py-2.5 text-center text-sm font-semibold text-blue-700 hover:bg-blue-100 active:scale-[0.98] transition-all dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/20"
+            >
+              <span>🖨️</span> {printLabel}
+            </button>
+          </div>
+        )}
+
         {/* Nút hành động */}
-        <div className="mt-6 flex flex-col gap-2.5 sm:flex-row-reverse">
+        <div className="mt-5 flex flex-col gap-2.5 sm:flex-row-reverse">
           <Link
             href={nextHref}
             className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm hover:bg-blue-700 active:scale-[0.98] transition-all"

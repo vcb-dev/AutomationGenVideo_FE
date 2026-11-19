@@ -42,6 +42,9 @@ const nextConfig = {
     unoptimized: process.env.NODE_ENV === 'development',
   },
   experimental: {
+    // Proxy /api (rewrites bên dưới) mặc định cắt sau 30s → các lượt dài của Tạo ảnh SP (đổi SP 0đ ~20–40s, Gemini
+    // tới 90s, lần tách nền đầu tới 120s — BE chờ tối đa 180s) bị trả 500 dù BE/AI vẫn chạy xong (đo 13/10).
+    proxyTimeout: 200_000,
     optimizePackageImports: [
       'lucide-react',
       'framer-motion',
@@ -89,6 +92,10 @@ const nextConfig = {
       {
         source: '/:path*.png',
         headers: [{ key: 'Cache-Control', value: 'public, max-age=86400' }],
+      },
+      {
+        source: '/product-image/backgrounds/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=86400, stale-while-revalidate=604800' }],
       },
       {
         source: '/:path*.svg',

@@ -251,6 +251,7 @@ function IdPhotoPageContent() {
       );
       if (requestId !== mergeRequestId.current) return; // đã bị Huỷ/lượt sau ghi đè
       setMergedImageData(res.data.processedImageData);
+      if (res.data.faceNotice) toast(res.data.faceNotice, { icon: '⚠️', duration: 8000 });
       setMergeStatus('success');
     } catch (err: any) {
       const isCanceled = err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError';
@@ -288,6 +289,14 @@ function IdPhotoPageContent() {
         position,
       });
       setHistoryId(res.data.id);
+      // BE đã tự căn mặt vào khung tròn (crop từ face_box của AI); NULL = vị trí mặc định.
+      const autoCrop: CropTransform = {
+        offsetX: res.data.crop_offset_x ?? CROP_DEFAULT.offsetX,
+        offsetY: res.data.crop_offset_y ?? CROP_DEFAULT.offsetY,
+        scale: res.data.crop_scale ?? CROP_DEFAULT.scale,
+      };
+      setCrop(autoCrop);
+      setSavedCrop(autoCrop);
       setStep(4);
     } catch (err: any) {
       const msg = err.response?.data?.message || 'Tạo bản ghi ảnh thẻ thất bại, vui lòng thử lại.';
@@ -364,11 +373,12 @@ function IdPhotoPageContent() {
     try {
       const res = await apiClient.post(`/id-photo/${historyId}/remerge-outfit`);
       setMergedImageData(res.data.processedImageData);
+      if (res.data.faceNotice) toast(res.data.faceNotice, { icon: '⚠️', duration: 8000 });
       invalidateExportedPdf();
-      // BE reset crop_offset_x/y/scale về NULL khi ghép áo lại (ảnh mới bố cục khác, giữ crop
-      // cũ dễ sai — xem IdPhotoService#remergeOutfit) — đồng bộ lại state FE cho khớp.
-      setCrop(CROP_DEFAULT);
-      setSavedCrop(CROP_DEFAULT);
+      // BE đặt lại crop theo mặt của ảnh mới (null nếu không thấy mặt) — đồng bộ state FE cho khớp.
+      const newCrop: CropTransform = res.data.crop ?? CROP_DEFAULT;
+      setCrop(newCrop);
+      setSavedCrop(newCrop);
       toast.success('Đã có ảnh mới. Kiểm tra lại rồi bấm "Xuất file PDF".', { id: loadingToast });
     } catch (err: any) {
       // Dùng lại đúng bộ đổi lỗi của bước 2 — cùng một endpoint AI phía sau nên các mã lỗi

@@ -1,5 +1,6 @@
 import apiClient from '../api-client';
 import { withUploadQueue } from '../upload-queue';
+import { createDirectPartUploader, finishWithRetry, uploadErrorMessage, uploadInParts } from '../storage/chunked-upload';
 
 export type SocialPlatform = 'FACEBOOK' | 'INSTAGRAM' | 'THREADS' | 'YOUTUBE' | 'TIKTOK';
 
@@ -19,6 +20,18 @@ export interface SocialAccount {
   parent_id?: string;
   extra_data?: Record<string, string | number | boolean | null | undefined>;
   created_at: string;
+}
+
+export interface TikTokCreatorInfo {
+  accountId: string;
+  nickname: string;
+  username?: string | null;
+  avatarUrl?: string | null;
+  privacyLevelOptions: string[];
+  commentDisabled: boolean;
+  duetDisabled: boolean;
+  stitchDisabled: boolean;
+  maxVideoPostDurationSec: number | null;
 }
 
 export interface SocialPostResult {
@@ -91,7 +104,7 @@ export interface MediaLibraryItem {
   size: number;
   url: string;
   thumbnail_url?: string;
-  storage: 'supabase' | 'local' | 'db' | 'google_drive';
+  storage: 'supabase' | 'local' | 'db' | 'google_drive' | 'r2';
   created_at: string;
 }
 
@@ -107,111 +120,24 @@ export const socialApi = {
       );
       return res.data.urls;
     },
-    fromDrive: async (fileId: string, accessToken: string, mimeType: string, filename: string): Promise<UploadedMedia[]> => {
-      const res = await apiClient.post<{ urls: UploadedMedia[] }>(
-        '/social/upload/from-drive',
-        { fileId, accessToken, mimeType, filename }
-      );
-      return res.data.urls;
-    },
     chunked: (file: File, onProgress?: (pct: number) => void): Promise<UploadedMedia[]> =>
       withUploadQueue(async () => {
-        const CHUNK_SIZE = 8 * 1024 * 1024;
-        const { uploadId, uploadUrl, chunkSize } = await apiClient
-          .post<{ uploadId: string; uploadUrl: string; chunkSize: number }>('/social/upload/chunk/init', {
+        const { uploadId, chunkSize, partUploadUrl } = await apiClient
+          .post<{ uploadId: string; chunkSize: number; partUploadUrl: string }>('/social/upload/chunk/init', {
             filename: file.name, mimetype: file.type, totalSize: file.size,
-          }).then(r => r.data);
-        const effectiveChunkSize = chunkSize || CHUNK_SIZE;
-        let driveFileId: string | undefined;
-        let offset = 0;
-
-        const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-        const syncStatus = async () => {
-          const status = await apiClient.post<{
-            uploadedBytes: number;
-            totalSize: number;
-            completed: boolean;
-            driveFileId?: string;
-          }>('/social/upload/chunk/status', { uploadId }).then(r => r.data);
-          driveFileId = status.driveFileId || driveFileId;
-          offset = Math.min(status.uploadedBytes || 0, file.size);
-          onProgress?.(Math.round((offset / file.size) * 90));
-          return status;
-        };
-
-        while (offset < file.size) {
-          const start = offset;
-          const end = Math.min(start + effectiveChunkSize, file.size) - 1;
-          const blob = file.slice(start, end + 1);
-          let uploaded = false;
-
-          for (let attempt = 1; attempt <= 5; attempt++) {
-            try {
-              const res = await fetch(uploadUrl, {
-                method: 'PUT',
-                headers: {
-                  'Content-Type': file.type || 'application/octet-stream',
-                  'Content-Range': `bytes ${start}-${end}/${file.size}`,
-                },
-                body: blob,
-                signal: AbortSignal.timeout(60_000),
-              });
-
-              // Server quá tải: đợi theo Retry-After rồi thử lại (không tính vào attempt)
-              if (res.status === 429) {
-                const wait = parseInt(res.headers.get('Retry-After') ?? '5', 10);
-                await sleep(Math.max(wait * 1000, 3000));
-                attempt--; // không tính lần này
-                continue;
-              }
-
-              if (res.status === 200 || res.status === 201) {
-                const data = await res.json().catch(() => ({}));
-                driveFileId = (data as { id?: string }).id;
-                offset = file.size;
-                uploaded = true;
-                break;
-              }
-
-              if (res.status === 308) {
-                offset = end + 1;
-                uploaded = true;
-                break;
-              }
-
-              const text = await res.text().catch(() => res.statusText);
-              throw new Error(`Google Drive upload failed (${res.status}): ${text}`);
-            } catch (err) {
-              if (attempt === 5) {
-                const status = await syncStatus().catch(() => null);
-                if (status?.completed) {
-                  driveFileId = status.driveFileId;
-                  offset = file.size;
-                  uploaded = true;
-                  break;
-                }
-                if (offset > start) {
-                  uploaded = true;
-                  break;
-                }
-                await apiClient.post('/social/upload/chunk/cancel', { uploadId }).catch(() => {});
-                throw err;
-              }
-              await sleep(1000 * attempt);
-            }
-          }
-
-          if (!uploaded) throw new Error('Google Drive upload failed');
-          onProgress?.(Math.round((offset / file.size) * 90));
+          }).then(r => r.data)
+          .catch(err => { throw new Error(uploadErrorMessage(err)); });
+        try {
+          await uploadInParts(file, chunkSize, createDirectPartUploader(partUploadUrl, file.name), { onProgress });
+        } catch (err) {
+          // Đã thử lại hết lượt (gồm chờ có mạng) → bỏ phiên để không để khúc dở trên R2.
+          await apiClient.post('/social/upload/chunk/cancel', { uploadId }).catch(() => {});
+          throw new Error(uploadErrorMessage(err));
         }
-
-        if (!driveFileId) {
-          const status = await syncStatus();
-          driveFileId = status.driveFileId;
-        }
-        if (!driveFileId) throw new Error('Không lấy được driveFileId sau khi upload hoàn tất');
         onProgress?.(95);
-        const result = await apiClient.post<{ urls: UploadedMedia[] }>('/social/upload/chunk/finish', { uploadId, driveFileId }).then(r => r.data);
+        const result = await finishWithRetry(() =>
+          apiClient.post<{ urls: UploadedMedia[] }>('/social/upload/chunk/finish', { uploadId }, { timeout: 190_000 }).then(r => r.data),
+        ).catch(err => { throw new Error(uploadErrorMessage(err)); });
         onProgress?.(100);
         return result.urls;
       }),
@@ -231,6 +157,12 @@ export const socialApi = {
       apiClient.get<{ url: string }>(`/social/oauth/${platform.toLowerCase()}/url`, {
         params: opts?.igMode ? { igMode: opts.igMode } : undefined,
       }).then((r) => r.data),
+  },
+
+  tiktok: {
+    /** Thông tin kênh TikTok cho màn soạn bài (quyền riêng tư được chọn, tương tác bị tắt, giới hạn thời lượng) */
+    creatorInfo: (accountId: string): Promise<TikTokCreatorInfo> =>
+      apiClient.get(`/social/publish/tiktok/${accountId}/creator-info`).then((r) => r.data),
   },
 
   publish: {

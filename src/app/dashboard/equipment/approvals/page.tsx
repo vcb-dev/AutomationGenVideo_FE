@@ -176,6 +176,11 @@ function ApprovalsPageInner() {
                       <span className="block text-sm font-semibold text-slate-900 dark:text-white">
                         {r.request_code}
                       </span>
+                      {r.owner_name && (
+                        <span className="block text-xs font-medium text-blue-600 dark:text-blue-400">
+                          👤 {r.owner_name}
+                        </span>
+                      )}
                       <span className="block text-xs text-slate-500 dark:text-slate-400">
                         {r.project}
                       </span>
@@ -224,6 +229,17 @@ function ApprovalsPageInner() {
                 <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-4 sm:p-5 dark:border-white/[0.06] dark:bg-white/[0.02]">
                   <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
                     <div>
+                      <dt className={keyClass}>Người mượn</dt>
+                      <dd className={valueClass}>
+                        <span className="font-semibold">{current.owner_name || '—'}</span>
+                        {current.owner_email && (
+                          <span className="block text-[11px] text-slate-400 truncate">
+                            {current.owner_email}
+                          </span>
+                        )}
+                      </dd>
+                    </div>
+                    <div>
                       <dt className={keyClass}>Bộ phận</dt>
                       <dd className={valueClass}>{current.department?.name ?? '—'}</dd>
                     </div>
@@ -249,7 +265,7 @@ function ApprovalsPageInner() {
                       <dt className={keyClass}>Địa điểm</dt>
                       <dd className={valueClass}>{current.place}</dd>
                     </div>
-                    <div className="col-span-2 sm:col-span-3">
+                    <div>
                       <dt className={keyClass}>Khoảng mượn</dt>
                       <dd className={cn(valueClass, 'font-medium font-mono text-xs sm:text-sm')}>
                         {formatTimeRange(current.from_time, current.to_time)}
@@ -262,6 +278,36 @@ function ApprovalsPageInner() {
                       </dd>
                     </div>
                   </dl>
+
+                  {(current.note || (current.photos && current.photos.length > 0)) && (
+                    <div className="mt-4 border-t border-slate-200/60 pt-4 dark:border-white/[0.06]">
+                      <dt className={keyClass}>Ghi chú & Ảnh đính kèm từ người mượn</dt>
+                      {current.note && (
+                        <dd className="mt-1 text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                          {current.note}
+                        </dd>
+                      )}
+                      {current.photos && current.photos.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {current.photos.map((src, idx) => (
+                            <a
+                              key={idx}
+                              href={src}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="group relative block h-20 w-20 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 hover:ring-2 hover:ring-blue-500 dark:border-white/10 dark:bg-slate-800"
+                            >
+                              <img
+                                src={src}
+                                alt={`Ảnh đính kèm ${idx + 1}`}
+                                className="h-full w-full object-cover transition group-hover:scale-105"
+                              />
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 

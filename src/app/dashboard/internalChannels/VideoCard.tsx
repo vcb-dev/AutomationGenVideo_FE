@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { Play, Pause, Eye, Heart, MessageCircle, Share2, Users, ExternalLink } from 'lucide-react';
 import { FacebookVideo } from '@/types/facebook';
 import OPaastVideo from './components/OPaastVideo';
@@ -30,9 +30,11 @@ interface VideoCardProps {
   video: FacebookVideo;
   isPlaying: boolean;
   onPlay: (postId: string) => void;
+  /** Dòng thông tin thêm ở đầu thân thẻ — vd page/người cầm kênh ở tab "Video đã đăng" */
+  meta?: ReactNode;
 }
 
-export default function VideoCard({ video, isPlaying, onPlay }: VideoCardProps) {
+export default function VideoCard({ video, isPlaying, onPlay, meta }: VideoCardProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -148,6 +150,7 @@ export default function VideoCard({ video, isPlaying, onPlay }: VideoCardProps) 
 
       {/* Body */}
       <div className="p-3.5 flex flex-col gap-2.5">
+        {meta}
         <p className="text-sm text-slate-700 leading-relaxed line-clamp-3">
           {renderCaptionWithHashtags(video.caption || '')}
         </p>

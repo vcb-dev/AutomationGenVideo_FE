@@ -3,6 +3,7 @@
 export const TTS_LANGUAGES: string[] = [
   'Tiếng Việt', 'English', '日本語', '한국어', '中文 (简体)',
   'Español', 'Français', 'Deutsch', 'Português', 'ภาษาไทย',
+  'Bahasa Melayu',
 ]
 
 /** Map nhãn UI sang giá trị `language_boost` mà API TTS của Minimax cần. */
@@ -17,4 +18,40 @@ export const TTS_LANGUAGE_TO_MINIMAX: Record<string, string> = {
   'Deutsch': 'German',
   'Português': 'Portuguese',
   'ภาษาไทย': 'Thai',
+  'Bahasa Melayu': 'Malay',
+}
+
+/** Ký hiệu nước trong tên giọng (vd "HuyK TH", "HuyK Malay") → nhãn ngôn ngữ đọc tương ứng. */
+const VOICE_NAME_TOKEN_TO_LANGUAGE: Record<string, string> = {
+  vn: 'Tiếng Việt',
+  usa: 'English',
+  uk: 'English',
+  english: 'English',
+  jp: '日本語',
+  japan: '日本語',
+  kr: '한국어',
+  korea: '한국어',
+  cn: '中文 (简体)',
+  china: '中文 (简体)',
+  tbn: 'Español',
+  spain: 'Español',
+  fr: 'Français',
+  france: 'Français',
+  germany: 'Deutsch',
+  portugal: 'Português',
+  th: 'ภาษาไทย',
+  thai: 'ภาษาไทย',
+  thailand: 'ภาษาไทย',
+  malay: 'Bahasa Melayu',
+  malaysia: 'Bahasa Melayu',
+}
+
+/** Đoán ngôn ngữ đọc từ tên giọng theo từng từ trong tên; không nhận ra thì trả null. */
+export function inferTtsLanguageFromVoiceName(name: string | null | undefined): string | null {
+  const tokens = (name ?? '').toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean)
+  for (const token of tokens) {
+    const language = VOICE_NAME_TOKEN_TO_LANGUAGE[token]
+    if (language) return language
+  }
+  return null
 }

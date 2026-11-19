@@ -7,9 +7,10 @@ import { useScrollLock } from '@/hooks/useScrollLock'
 import {
   FileText, X, Trash2, Mic, AlignLeft, Clapperboard,
   ExternalLink, Edit2, SendHorizontal, Globe,
-  User, Calendar, Tag, Languages, Loader2, Check, Plus, Gauge, Sparkles, ClipboardList, Trophy,
+  User, Calendar, Tag, Languages, Loader2, Check, Plus, Gauge, Sparkles, ClipboardList, Trophy, Video,
 } from 'lucide-react'
 import { ContentWinProofLink } from './ContentWinProofLink'
+import { isVideoLink } from './ContentSourcePicker'
 import { cn, drivePreviewUrl } from '@/lib/utils'
 import { CustomSelect } from './DarkInput'
 import { getContentTranslations, upsertContentTranslation, deleteContentTranslation, aiTranslateContent } from '@/lib/api/task-auto'
@@ -143,7 +144,7 @@ function ContentLanguagePanel({
                 : 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed',
             )}
           >
-            <Gauge className="w-3.5 h-3.5" /> Chấm điểm content
+            <Gauge className="w-3.5 h-3.5" /> Chấm điểm nội dung
           </button>
 
           {!isOriginal && canEdit && (
@@ -443,7 +444,7 @@ export function ContentViewModal({
                             : 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed',
                         )}
                       >
-                        <Gauge className="w-3.5 h-3.5" /> Chấm điểm content
+                        <Gauge className="w-3.5 h-3.5" /> Chấm điểm nội dung
                       </button>
                     </div>
                     <div className="bg-gray-50 rounded-2xl px-5 py-4 text-base text-slate-700 whitespace-pre-wrap leading-relaxed border border-gray-100">
@@ -503,7 +504,13 @@ export function ContentViewModal({
                       )}
                     </div>
                   )}
-                  {itemFileContentUrl && (
+                  {itemFileContentUrl && (isVideoLink(itemFileContentUrl) ? (
+                    <a href={itemFileContentUrl} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 transition-colors">
+                      <Video className="w-4 h-4" aria-hidden="true" /> Mở video content
+                      <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
+                    </a>
+                  ) : (
                     <div className="flex items-center gap-3">
                       {fileSrc && (
                         <button onClick={() => setFileOpen(true)}
@@ -516,7 +523,7 @@ export function ContentViewModal({
                         <ExternalLink className="w-4 h-4" /> Mở link gốc
                       </a>
                     </div>
-                  )}
+                  ))}
                 </div>
               </div>
             )}

@@ -138,7 +138,7 @@ function VideoCard({ video, profile }: { video: BilibiliVideo; profile?: Bilibil
 
 export default function BilibiliProfileDetailPage() {
   const { token, user } = useAuthStore();
-  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
+  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER, UserRole.MANAGER].includes(r)) ?? false;
   const router = useRouter();
   const queryClient = useQueryClient();
   const { profileId } = useParams<{ profileId: string }>();

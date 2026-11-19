@@ -65,7 +65,7 @@ export default function SyncAllChannelsButton({
   // lần đầu và React ném "Rendered more hooks than during the previous render" — trắng trang.
 
   // Chỉ hiển thị nút nếu user có quyền cào tay
-  const isLeaderOrAdmin = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r as any)) ?? false;
+  const isLeaderOrAdmin = user?.roles?.some(r => [UserRole.ADMIN, UserRole.MANAGER, UserRole.LEADER].includes(r as any)) ?? false;
   const hasExternalPerm = hasPermission(user, 'social:external:crawl_all');
   if (isOwned ? (!isLeaderOrAdmin && !hasExternalPerm) : !hasExternalPerm) {
     return null;

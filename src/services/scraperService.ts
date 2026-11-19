@@ -787,6 +787,13 @@ export interface ExternalVideo {
   author_name: string;
   author_avatar: string;
   author_username: string;
+  /** Chỉ endpoint kênh nội bộ trả — link phát trực tiếp (hiện chỉ Facebook có, CDN hết hạn sau vài tuần). */
+  video_url?: string | null;
+  /**
+   * Chỉ có khi gọi kèm `with_classification=1`: phân loại của content gắn task đã nối với video
+   * (Facebook). null = video chưa gắn task nào / content chưa phân loại.
+   */
+  content_classification?: { id: string; name: string } | null;
 }
 
 export interface OwnedChannel {
@@ -1113,12 +1120,14 @@ export interface PaginatedExternalVideos {
   page_size: number;
   total_pages: number;
   videos: ExternalVideo[];
+  /** Chỉ có khi lọc owner_id/team_id — các kênh nội bộ nằm trong phạm vi lọc. */
+  scope_channels?: { platform: string; name: string }[];
 }
 
 export const scraperService = {
   getAllExternalVideos: async (token: string, params: {
     page?: number; page_size?: number; q?: string; sort?: string; platform?: string;
-    min_plays?: number; date_from?: string; date_to?: string;
+    min_plays?: number; date_from?: string; date_to?: string; hidden?: boolean | string;
   }): Promise<PaginatedExternalVideos> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/all-videos${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -1134,6 +1143,14 @@ export const scraperService = {
     content_line?: string;
     channel?: string;
     hashtag?: string;
+    /** Chỉ video từ kênh người này cầm (ghép qua Quản lý kênh). */
+    owner_id?: string;
+    /** Chỉ video từ kênh của team này. */
+    team_id?: string;
+    /** Phân loại nội dung (id, hoặc 'none' = chưa phân loại) — chỉ video Facebook đã gắn task. */
+    classification_id?: string;
+    /** 1 → mỗi video kèm `content_classification`. */
+    with_classification?: 0 | 1;
   }): Promise<PaginatedExternalVideos> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/owned/videos${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -2428,6 +2445,40 @@ export const scraperService = {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.message || 'Cào danh sách kênh thất bại');
+    }
+    return res.json();
+  },
+
+  // Ẩn video không phù hợp (Soft delete / Blacklist)
+  hideVideo: async (token: string, platform: string, postId: string, reason?: string) => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/videos/hide`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ platform, post_id: postId, reason }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Không thể ẩn video');
+    }
+    return res.json();
+  },
+
+  // Khôi phục video đã ẩn
+  restoreVideo: async (token: string, platform: string, postId: string) => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/videos/restore`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ platform, post_id: postId }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Không thể khôi phục video');
     }
     return res.json();
   },

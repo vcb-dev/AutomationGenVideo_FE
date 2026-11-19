@@ -32,10 +32,9 @@ export function approvalOutcome(request: DecidedRequest): ApprovalOutcome {
   if (PAST_APPROVAL.includes(request.status)) {
     return {
       kind: 'ready-to-prepare',
-      message: `Đã duyệt xong phiếu ${request.request_code}. Bước tiếp theo là gán máy cụ thể.`,
-      // Gắn id vào đường dẫn: màn chuẩn bị mặc định lấy phiếu đầu danh sách, không gắn thì
-      // người ký sang tới nơi lại đang soạn một phiếu khác.
-      nextHref: `/dashboard/equipment/prepare?request=${request.id}`,
+      message: `Đã duyệt xong phiếu ${request.request_code}. Chuyển sang bước bàn giao thiết bị.`,
+      // Dẫn thẳng sang màn bàn giao & gán máy
+      nextHref: `/dashboard/equipment/handover?request=${request.id}`,
     };
   }
 

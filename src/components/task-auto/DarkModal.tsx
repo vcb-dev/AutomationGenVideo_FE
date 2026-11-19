@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useId, useRef } from 'react'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useScrollLock } from '@/hooks/useScrollLock'
@@ -27,34 +27,102 @@ const SIZE = {
 function DarkModalInner({ open, onClose, title, subtitle, children, size = 'md', footer }: Props) {
   useScrollLock()
   const backdrop = useBackdropClose(onClose)
+  const titleId = useId()
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
 
   useEffect(() => {
+    const dialog = dialogRef.current
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const focusableSelector = [
+      'button:not([disabled])',
+      'a[href]',
+      'input:not([disabled])',
+      'select:not([disabled])',
+      'textarea:not([disabled])',
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(',')
+
+    const focusFirst = () => {
+      // 2 lần query: 1 selector list trả phần tử ĐẦU TIÊN theo thứ tự DOM, nên nút Đóng ở header
+      // luôn thắng [data-autofocus] nằm trong body.
+      const first = dialog?.querySelector<HTMLElement>('[data-autofocus]')
+        ?? dialog?.querySelector<HTMLElement>(focusableSelector)
+      ;(first ?? dialog)?.focus()
+    }
+    // Chờ nội dung modal được gắn vào DOM rồi mới chuyển focus.
+    const frame = requestAnimationFrame(focusFirst)
+
     function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
+      const dialogs = document.querySelectorAll<HTMLElement>('[data-dark-modal]')
+      if (dialogs[dialogs.length - 1] !== dialog) return
+      if (e.key === 'Escape') {
+        // Dropdown bên trong (vd. ServerSearchSelect) đã dùng Esc để tự đóng — không đóng cả modal
+        if (e.defaultPrevented) return
+        e.preventDefault()
+        onCloseRef.current()
+        return
+      }
+      if (e.key !== 'Tab' || !dialog) return
+
+      const focusable = Array.from(
+        dialog.querySelectorAll<HTMLElement>(focusableSelector),
+      ).filter(el => el.offsetParent !== null)
+      if (!focusable.length) {
+        e.preventDefault()
+        dialog.focus()
+        return
+      }
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
     }
     document.addEventListener('keydown', handleKey)
-    return () => document.removeEventListener('keydown', handleKey)
-  }, [onClose])
+    return () => {
+      cancelAnimationFrame(frame)
+      document.removeEventListener('keydown', handleKey)
+      previouslyFocused?.focus()
+    }
+  }, [])
 
   return (
     <div className="fixed inset-0 z-[1003] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" {...backdrop} />
-      <div className={cn(
-        'relative bg-white border border-gray-100 shadow-2xl w-full flex flex-col',
-        'rounded-t-2xl sm:rounded-2xl max-h-[95vh] sm:max-h-[92vh]',
-        SIZE[size]
-      )}>
+      <div
+        ref={dialogRef}
+        data-dark-modal
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className={cn(
+          'relative bg-white border border-gray-100 shadow-2xl w-full flex flex-col',
+          'rounded-t-2xl sm:rounded-2xl max-h-[95vh] sm:max-h-[92vh]',
+          SIZE[size],
+        )}
+      >
         {/* Header */}
         <div className="flex items-start justify-between px-5 py-5 sm:px-8 sm:py-7 border-b border-gray-100 flex-shrink-0">
           <div>
-            <h2 className="font-bold text-slate-900 text-xl sm:text-2xl">{title}</h2>
+            <h2 id={titleId} className="font-bold text-slate-900 text-xl sm:text-2xl">
+              {title}
+            </h2>
             {subtitle && <p className="text-sm sm:text-base text-slate-500 mt-1">{subtitle}</p>}
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-gray-100 transition-colors shrink-0"
+            aria-label="Đóng"
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-gray-100 transition-colors shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5" aria-hidden="true" />
           </button>
         </div>
 

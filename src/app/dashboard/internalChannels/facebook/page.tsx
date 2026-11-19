@@ -23,6 +23,15 @@ import { FilterDateRange, FilterNumber, FilterReset, FilterSearch, FilterSelect 
 import { channelsService, ChannelInfo } from '@/services/channelsService';
 import { scrapeOutcome } from '@/lib/scrape/scrape-outcome';
 import { findPolledPage, pollPageFilters } from '@/lib/scrape/poll-page-lookup';
+import { crawlStatus, lastCrawlText, CrawlTone } from '@/lib/scrape/facebook-page-status';
+
+const CRAWL_TONE_CLASS: Record<CrawlTone, string> = {
+  running: 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
+  error: 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400',
+  idle: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300',
+  partial: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300',
+  ok: 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400',
+};
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -39,32 +48,6 @@ function relativeTime(dateStr: string): string {
   if (diffD < 30) return `${Math.floor(diffD / 7)} tuần trước`;
   if (diffD < 365) return `${Math.floor(diffD / 30)} tháng trước`;
   return `${Math.floor(diffD / 365)} năm trước`;
-}
-
-function isTransientError(msg?: string | null): boolean {
-  if (!msg) return false;
-  const lower = msg.toLowerCase();
-  return (
-    lower.includes('status code 502') ||
-    lower.includes('status code 503') ||
-    lower.includes('status code 504') ||
-    lower.includes('status code 429') ||
-    lower.includes('too many requests') ||
-    lower.includes('econnrefused') ||
-    lower.includes('etimedout') ||
-    lower.includes('timedout') ||
-    lower.includes('timeout') ||
-    lower.includes('econnreset') ||
-    lower.includes('enotfound') ||
-    lower.includes('network error') ||
-    lower.includes('nameresolutionerror') ||
-    lower.includes('connectionpool') ||
-    lower.includes('max retries exceeded') ||
-    lower.includes('temporary failure in name resolution') ||
-    lower.includes('getaddrinfo') ||
-    lower.includes('socket hang up') ||
-    lower.includes('aborted')
-  );
 }
 
 function proxyImg(url: string, w = 120, h = 120): string {
@@ -92,32 +75,28 @@ function FacebookPageCard({
   onScrape?: () => void;
   onBackfill?: () => void;
 }) {
-  const hasRealError = !p.is_scraping && p.scrape_error && !isTransientError(p.scrape_error);
+  // Lỗi mạng tạm thời (502, timeout…) BE không lưu nữa, nhưng bản ghi cũ có thể còn — không báo đỏ.
+  const status = crawlStatus(p, !!onBackfill);
 
   return (
-    <div className="bg-card border border-border rounded-xl overflow-hidden hover:shadow-md transition-shadow">
-      {/* Status badges */}
-      {(p.is_scraping || !p.is_active || hasRealError) && (
-        <div className="flex items-center gap-1.5 px-3.5 pt-2.5 pb-0">
-          {p.is_scraping && (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded text-xs font-medium">
-              <CircleNotch size={10} weight="bold" className="animate-spin" /> Đang cào
-            </span>
-          )}
-          {hasRealError && (
-            <span
-              className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded text-xs font-medium max-w-full"
-              title={p.scrape_error!}
-            >
-              <Warning size={10} weight="bold" /> <span className="truncate">Cào lỗi</span>
-            </span>
-          )}
-          {!p.is_active && (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded text-xs font-medium">
-              Inactive
-            </span>
-          )}
-        </div>
+    <div className="bg-card border border-border rounded-xl overflow-hidden hover:shadow-md transition-shadow flex flex-col">
+      {/* Trạng thái kéo video */}
+      <div className="flex flex-wrap items-center gap-1.5 px-3.5 pt-2.5 pb-0">
+        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium ${CRAWL_TONE_CLASS[status.tone]}`}>
+          {status.tone === 'running' && <CircleNotch size={10} weight="bold" className="animate-spin" />}
+          {status.tone === 'error' && <Warning size={10} weight="bold" />}
+          {status.label}
+        </span>
+        {!p.is_active && (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded text-xs font-medium">
+            Inactive
+          </span>
+        )}
+      </div>
+      {status.detail && (
+        <p className={`mx-3.5 mt-2 px-2 py-1.5 rounded text-xs leading-relaxed ${status.tone === 'error' ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300' : 'bg-slate-50 dark:bg-slate-800/40 text-slate-600 dark:text-slate-300'} line-clamp-4 break-words`} title={status.detail}>
+          {status.detail}
+        </p>
       )}
 
       {/* Avatar + info */}
@@ -158,13 +137,14 @@ function FacebookPageCard({
             <span className="text-xs text-slate-500">{formatNum(p.likes_count)}</span>
           </div>
         )}
-        {(p.video_count ?? 0) > 0 && (
-          <div className="flex items-center gap-1.5">
-            <VideoCamera size={13} className="text-purple-500" />
-            <span className="text-xs text-slate-500">{p.video_count}</span>
-          </div>
-        )}
+        <div className="flex items-center gap-1.5" title="Số video đã kéo về">
+          <VideoCamera size={13} className="text-purple-500" />
+          <span className="text-xs text-slate-500">{(p.video_count ?? 0).toLocaleString('vi-VN')} video</span>
+        </div>
       </div>
+      <p className="px-3.5 pb-2 text-[11px] text-slate-400">
+        Kéo gần nhất: {lastCrawlText(p.last_scraped_at)}
+      </p>
 
       {/* Team / Owner */}
       <div className="grid grid-cols-2 gap-x-3 px-3.5 py-2 border-t border-border/50 bg-slate-50/30 dark:bg-slate-800/20">
@@ -186,10 +166,22 @@ function FacebookPageCard({
             {channelInfo.owner_name ?? 'Chưa có dữ liệu'}
           </p>
         </div>
+        <div className="col-span-2 min-w-0 mt-1.5">
+          <div className="flex items-center gap-1 text-slate-400 mb-0.5">
+            <UserCircle size={10} />
+            <span className="text-[10px] uppercase tracking-wide">Người kết nối</span>
+          </div>
+          <p
+            className={`text-xs truncate ${p.connected_by?.length ? 'font-medium text-foreground' : 'italic text-slate-400'}`}
+            title={p.connected_by?.join(', ')}
+          >
+            {p.connected_by?.length ? p.connected_by.join(', ') : 'Token hệ thống'}
+          </p>
+        </div>
       </div>
 
       {/* Actions */}
-      <div className="flex items-center border-t border-border bg-slate-50/50 dark:bg-slate-800/30">
+      <div className="mt-auto flex items-center border-t border-border bg-slate-50/50 dark:bg-slate-800/30">
         <button
           onClick={onViewVideos}
           className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors ${
@@ -214,10 +206,14 @@ function FacebookPageCard({
           <button
             onClick={onBackfill}
             disabled={p.is_scraping}
-            className="flex items-center gap-1 px-3 py-2.5 text-xs text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors disabled:opacity-40"
-            title="Backfill video cũ"
+            className={`flex items-center gap-1 px-3 py-2.5 text-xs font-semibold transition-colors disabled:opacity-40 ${
+              !status.suggestRetry
+                ? 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'
+                : 'text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'
+            }`}
+            title="Kéo lại toàn bộ video của page"
           >
-            <Archive size={13} />
+            <Archive size={13} /> Kéo lại
           </button>
         )}
       </div>
@@ -295,7 +291,8 @@ function FbVideoCard({
 
 export default function FacebookChannelsPage() {
   const { token, user } = useAuthStore();
-  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER, UserRole.MANAGER].includes(r)) ?? false;
+  // Khớp quyền BE (POST /facebook/sync|backfill chỉ ADMIN/LEADER) — trước đây MANAGER thấy nút mà bấm bị 403.
+  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
   const router = useRouter();
   const autoSyncDone = useRef(false);
 
@@ -385,7 +382,11 @@ export default function FacebookChannelsPage() {
       const res = await facebookService.triggerBackfill(token, pg.page_id);
       toast.success(res.message);
       pollUntilDone(pg.page_id, pg.name);
-    } catch (e: any) { toast.error(e.message); }
+    } catch (e: any) {
+      toast.error(e.message);
+      // Lý do lỗi mới đã lưu vào page — tải lại để thẻ hiện đúng.
+      fetchPages();
+    }
   };
 
   const pollUntilDone = (pageId: string, pageName: string) => {
@@ -426,7 +427,9 @@ export default function FacebookChannelsPage() {
 
     const timeout = setTimeout(() => {
       stop();
-      toast.error(`Cào ${pageName} chạy quá lâu, đã ngừng theo dõi. Tải lại trang để xem kết quả.`);
+      // Kéo hết lịch sử một page lớn mất vài chục phút — đó là bình thường, không phải lỗi.
+      toast(`${pageName} vẫn đang kéo video ở nền (page nhiều video mất vài chục phút). Tải lại trang sau để xem kết quả.`);
+      fetchPages();
     }, 300_000);
 
     pollTimers.current.add(stop);
@@ -645,7 +648,8 @@ export default function FacebookChannelsPage() {
                 ))}
               </div>
             ) : (
-              <div className="bg-white dark:bg-card rounded-xl border border-border overflow-hidden">
+              <div className="bg-white dark:bg-card rounded-xl border border-border overflow-x-auto">
+                <div className="min-w-[1040px]">
                 <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto_auto] gap-4 px-5 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-border text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   <span className="w-10"></span>
                   <span>Kênh</span>
@@ -653,7 +657,7 @@ export default function FacebookChannelsPage() {
                   <span className="w-20 text-center">Likes</span>
                   <span className="w-24 text-center">Team</span>
                   <span className="w-40 text-center">Chủ kênh</span>
-                  <span className="w-28 text-center">Trạng thái</span>
+                  <span className="w-36 text-center">Trạng thái</span>
                   <span className="w-48 text-center">Hành động</span>
                 </div>
                 <div className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -669,6 +673,7 @@ export default function FacebookChannelsPage() {
                       selectedPageId={undefined}
                     />
                   ))}
+                </div>
                 </div>
               </div>
             )}

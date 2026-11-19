@@ -10,7 +10,7 @@
  * Kèm ô tìm kiếm thông minh "Tất cả chỉ tiêu" + Bộ lọc trạng thái + Khoảng ngày.
  */
 
-import { useCallback, useEffect, useMemo, useState, Suspense } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -18,23 +18,54 @@ import { borrowHistoryLabel } from '@/lib/equipment/borrow-history-label';
 import { buildBorrowLogQuery } from '@/lib/equipment/borrow-log-query';
 import {
   cancelRequest,
+  decideExtension,
+  deleteRequest,
   fetchBorrowHistoryLog,
   fetchRequests,
   type BorrowLogRow,
   type BorrowRequest,
 } from '@/lib/equipment/request-api';
 import { apiErrorMessage } from '@/lib/equipment/api-error';
+import { borrowLogLoadError, viewForQuickFilter } from '@/lib/equipment/borrow-log-view';
+import { photoSrc } from '@/lib/equipment/api';
+import { incidentKindLabel } from '@/lib/equipment/extension-incident-helpers';
 import { DatePicker } from '@/components/ui/DatePicker';
-import { BorrowPrintModal } from '@/components/equipment/BorrowPrintModal';
+import dynamic from 'next/dynamic';
+import { EquipmentAlertBanner } from '@/components/equipment/EquipmentAlertBanner';
 import { useAuthStore } from '@/store/auth-store';
 import { canManageCatalog } from '@/lib/equipment/catalog-permissions';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import {
+  DEFAULT_BORROW_LOG_VIEW,
   HOLDING_STATUSES,
   REQUEST_STATUS_FILTER_OPTIONS,
   canCancelRequest,
+  canDeleteRequest,
   requestStatusBadge,
   type RequestStatusTone,
 } from '@/lib/equipment/request-status';
+import {
+  type EquipmentQuickFilter,
+  QUICK_FILTER_OPTIONS,
+  computeQuickFilterCounts,
+  filterRequestsByQuickFilter,
+  isRequestOverdue,
+  isRequestExpiringSoon,
+} from '@/lib/equipment/quick-filters';
+
+// Hộp thoại chỉ tải JS khi người dùng mở.
+const BorrowPrintModal = dynamic(() =>
+  import('@/components/equipment/BorrowPrintModal').then((m) => m.BorrowPrintModal),
+);
+const IncidentReportModal = dynamic(() =>
+  import('@/components/equipment/IncidentReportModal').then((m) => m.IncidentReportModal),
+);
+const ExtensionRequestModal = dynamic(() =>
+  import('@/components/equipment/ExtensionRequestModal').then((m) => m.ExtensionRequestModal),
+);
+const MobileBorrowQRModal = dynamic(() =>
+  import('@/components/equipment/MobileBorrowQRModal').then((m) => m.MobileBorrowQRModal),
+);
 
 const cardClass =
   'rounded-2xl border border-slate-200 bg-white shadow-sm ' +
@@ -92,10 +123,11 @@ function BorrowHistoryLogPageInner() {
   const user = useAuthStore((s) => s.user);
   const isManager = canManageCatalog(user?.roles, user?.team);
 
-  // Chế độ xem: Với Member thì luôn là 'REQUEST' (Phiếu mượn của tôi); Quản lý kho có thêm tab 'ASSET'
-  const [viewMode, setViewMode] = useState<'ASSET' | 'REQUEST'>(isManager ? 'ASSET' : 'REQUEST');
+  // Chế độ xem: ai cũng mở vào bảng phiếu ('REQUEST'); Quản lý kho có thêm tab 'ASSET'.
+  const [viewMode, setViewMode] = useState<'ASSET' | 'REQUEST'>(DEFAULT_BORROW_LOG_VIEW);
 
   // Bộ lọc
+  const [quickFilter, setQuickFilter] = useState<EquipmentQuickFilter>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [status, setStatus] = useState('');
   const [from, setFrom] = useState('');
@@ -110,55 +142,111 @@ function BorrowHistoryLogPageInner() {
   // Dữ liệu phiếu mượn
   const [requests, setRequests] = useState<BorrowRequest[]>([]);
 
-  // Trạng thái tải
+  const [dismissSuccessBanner, setDismissSuccessBanner] = useState(false);
+
+  useEffect(() => {
+    if (createdCode) {
+      setDismissSuccessBanner(false);
+    }
+  }, [createdCode]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   // Modal chi tiết phiếu & In phiếu
   const [selectedRequest, setSelectedRequest] = useState<BorrowRequest | null>(null);
   const [printingRequest, setPrintingRequest] = useState<BorrowRequest | null>(null);
+  const [incidentModalRequest, setIncidentModalRequest] = useState<BorrowRequest | null>(null);
+  const [extensionModalRequest, setExtensionModalRequest] = useState<BorrowRequest | null>(null);
+  const [mobileQrOpen, setMobileQrOpen] = useState(false);
+  const [rejectingExtension, setRejectingExtension] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [decidingExtension, setDecidingExtension] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [deletingRequest, setDeletingRequest] = useState<BorrowRequest | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const deletingRef = useRef(false);
+  const [notice, setNotice] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
+
+  // Mỗi lần tải mang một số thứ tự; chỉ lần mới nhất được ghi vào màn hình. Không có thì lượt tải
+  // cũ (lúc thông tin đăng nhập chưa kịp nạp, hay trước khi đổi tab) về sau và đè lên dữ liệu đúng.
+  const loadSeq = useRef(0);
 
   // Load dữ liệu
   const load = useCallback(() => {
+    const seq = ++loadSeq.current;
+    const isLatest = () => seq === loadSeq.current;
     setLoading(true);
     setError('');
 
-    // Luôn tải danh sách phiếu để có số liệu thống kê toàn diện (BE tự lọc owner_id cho Member)
-    fetchRequests()
-      .then(setRequests)
-      .catch(() => {});
+    // Một lời gọi đủ cho cả thống kê lẫn danh sách; lọc trạng thái làm ở trình duyệt (BE tự lọc owner_id cho Member).
+    const requestsLoad = fetchRequests().then((rows) => {
+      if (isLatest()) setRequests(rows);
+    });
 
     if (isManager && viewMode === 'ASSET') {
+      requestsLoad.catch(() => {});
       fetchBorrowHistoryLog(buildBorrowLogQuery({ status, from, to, page }) as never)
         .then((res) => {
+          if (!isLatest()) return;
           setAssetRows(res.rows);
           setTotalAssetRows(res.total);
           setPageSize(res.pageSize);
         })
-        .catch((e: unknown) =>
-          setError(
-            (e as { response?: { status?: number } })?.response?.status === 403
-              ? 'Mục này chỉ dành cho quản trị viên và Leader Media.'
-              : 'Không đọc được nhật ký mượn.',
-          ),
-        )
-        .finally(() => setLoading(false));
-    } else {
-      fetchRequests(status || undefined)
-        .then((data) => {
-          setRequests(data);
+        .catch((e: unknown) => {
+          if (!isLatest()) return;
+          setError(borrowLogLoadError(e, { isManager, fallback: 'Không đọc được nhật ký mượn.' }));
         })
-        .catch((e: unknown) =>
+        .finally(() => {
+          if (isLatest()) setLoading(false);
+        });
+    } else {
+      requestsLoad
+        .catch((e: unknown) => {
+          if (!isLatest()) return;
           setError(
-            (e as { response?: { status?: number } })?.response?.status === 403
-              ? 'Mục này chỉ dành cho quản trị viên và Leader Media.'
-              : 'Không đọc được danh sách phiếu mượn.',
-          ),
-        )
-        .finally(() => setLoading(false));
+            borrowLogLoadError(e, { isManager, fallback: 'Không đọc được danh sách phiếu mượn.' }),
+          );
+        })
+        .finally(() => {
+          if (isLatest()) setLoading(false);
+        });
     }
   }, [isManager, viewMode, status, from, to, page]);
+
+  // Thông báo thành công tự tắt; thông báo lỗi giữ tới khi người dùng đóng.
+  useEffect(() => {
+    if (notice?.tone !== 'ok') return;
+    const timer = setTimeout(() => setNotice(null), 4000);
+    return () => clearTimeout(timer);
+  }, [notice]);
+
+  const confirmDelete = async () => {
+    // Chặn bấm trùng bằng ref chứ không bằng state: hai cú bấm xử lý trong cùng một đợt cập nhật
+    // dùng chung closure, lúc đó `deleting` vẫn là false và API bị gọi hai lần.
+    if (!deletingRequest || deletingRef.current) return;
+    deletingRef.current = true;
+    const target = deletingRequest;
+    setDeleting(true);
+    setNotice(null);
+    try {
+      await deleteRequest(target.id);
+      // Gỡ dòng tại chỗ, KHÔNG tải lại cả trang: tải lại bật vòng "Đang tải…" thay cả bảng (mất
+      // chỗ đang cuộn), và nếu lần tải đó lỗi mạng thì bảng trắng trơn dù phiếu đã xoá xong.
+      setRequests((rows) => rows.filter((r) => r.id !== target.id));
+      setDeletingRequest(null);
+      if (selectedRequest?.id === target.id) setSelectedRequest(null);
+      setNotice({ tone: 'ok', text: `Đã xoá phiếu ${target.request_code} khỏi nhật ký.` });
+    } catch (e: unknown) {
+      setDeletingRequest(null);
+      setNotice({
+        tone: 'error',
+        text: apiErrorMessage(e, `Không xoá được phiếu ${target.request_code}.`),
+      });
+    } finally {
+      deletingRef.current = false;
+      setDeleting(false);
+    }
+  };
 
   useEffect(() => {
     load();
@@ -167,6 +255,7 @@ function BorrowHistoryLogPageInner() {
   const cancel = async (request: BorrowRequest) => {
     setCancelling(true);
     setError('');
+    setNotice(null);
     try {
       await cancelRequest(request.id);
       setSelectedRequest(null);
@@ -178,6 +267,26 @@ function BorrowHistoryLogPageInner() {
     }
   };
 
+  const handleDecideExtension = async (request: BorrowRequest, decision: 'APPROVED' | 'REJECTED') => {
+    setDecidingExtension(true);
+    setError('');
+    setNotice(null);
+    try {
+      await decideExtension(request.id, {
+        decision,
+        reason: decision === 'REJECTED' ? rejectionReason.trim() : undefined,
+      });
+      setRejectingExtension(false);
+      setRejectionReason('');
+      setSelectedRequest(null);
+      load();
+    } catch (e: unknown) {
+      setError(apiErrorMessage(e, 'Không xử lý được quyết định gia hạn.'));
+    } finally {
+      setDecidingExtension(false);
+    }
+  };
+
   // Reset page khi thay đổi filter
   const changeFilter = (apply: () => void) => {
     apply();
@@ -185,6 +294,7 @@ function BorrowHistoryLogPageInner() {
   };
 
   const handleResetFilters = () => {
+    setQuickFilter('ALL');
     setSearchQuery('');
     setStatus('');
     setFrom('');
@@ -192,24 +302,39 @@ function BorrowHistoryLogPageInner() {
     setPage(1);
   };
 
-  const hasActiveFilters = Boolean(searchQuery || status || from || to);
+  const hasActiveFilters = Boolean(
+    searchQuery || status || from || to || quickFilter !== 'ALL',
+  );
+
+  // Tính số lượng thống kê cho các nút lọc nhanh 1 chạm
+  const quickFilterCounts = useMemo(() => computeQuickFilterCounts(requests), [requests]);
 
   // Lọc tìm kiếm đa năng trên tập dữ liệu ASSET
   const filteredAssetRows = useMemo(() => {
-    if (!searchQuery.trim()) return assetRows;
+    let rows = assetRows;
+    if (quickFilter === 'OVERDUE') {
+      rows = rows.filter((r) => r.status === 'OVERDUE');
+    }
+    if (!searchQuery.trim()) return rows;
     const q = searchQuery.trim().toLowerCase();
-    return assetRows.filter(
+    return rows.filter(
       (r) =>
         r.assetCode.toLowerCase().includes(q) ||
         (r.borrowerName && r.borrowerName.toLowerCase().includes(q)) ||
         (r.project && r.project.toLowerCase().includes(q)) ||
         r.status.toLowerCase().includes(q),
     );
-  }, [assetRows, searchQuery]);
+  }, [assetRows, quickFilter, searchQuery]);
 
-  // Lọc tìm kiếm đa năng và khoảng ngày trên tập dữ liệu REQUEST
+  // Lọc tìm kiếm đa năng, bộ lọc nhanh 1 chạm và khoảng ngày trên tập dữ liệu REQUEST
   const filteredRequests = useMemo(() => {
     let result = requests;
+    if (status) {
+      result = result.filter((r) => r.status === status);
+    }
+    if (quickFilter !== 'ALL') {
+      result = filterRequestsByQuickFilter(result, quickFilter);
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
       result = result.filter((r) => {
@@ -237,7 +362,7 @@ function BorrowHistoryLogPageInner() {
       result = result.filter((r) => new Date(r.from_time).getTime() <= toTime);
     }
     return result;
-  }, [requests, searchQuery, from, to]);
+  }, [requests, quickFilter, searchQuery, from, to, status]);
 
   // Thống kê nhanh tổng quan toàn hệ thống
   const stats = useMemo(() => {
@@ -328,6 +453,14 @@ function BorrowHistoryLogPageInner() {
               </div>
             )}
 
+            <button
+              type="button"
+              onClick={() => setMobileQrOpen(true)}
+              className="flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50/80 px-3 py-2 text-xs font-bold text-blue-700 shadow-2xs hover:bg-blue-100 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-300 transition-all"
+            >
+              <span>📱</span> Quét QR điện thoại
+            </button>
+
             <Link
               href="/dashboard/equipment/new-request"
               className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700 active:scale-95 transition-all"
@@ -337,8 +470,14 @@ function BorrowHistoryLogPageInner() {
           </div>
         </div>
 
+        {/* CẢNH BÁO QUÁ HẠN & SẮP ĐẾN HẠN TRẢ */}
+        <EquipmentAlertBanner
+          onSelectRequest={(id) => setSelectedRequest(requests.find((r) => r.id === id) ?? null)}
+          className="mt-4"
+        />
+
         {/* THÔNG BÁO TẠO PHIẾU THÀNH CÔNG NẾU CÓ */}
-        {createdCode && (
+        {createdCode && !dismissSuccessBanner && (
           <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50/90 p-4 text-sm text-emerald-900 shadow-sm dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300 animate-in fade-in slide-in-from-top-2 duration-300">
             <div className="flex items-center gap-2.5">
               <span className="text-2xl">🎉</span>
@@ -349,6 +488,47 @@ function BorrowHistoryLogPageInner() {
                 </p>
               </div>
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                setDismissSuccessBanner(true);
+                const url = new URL(window.location.href);
+                url.searchParams.delete('created');
+                window.history.replaceState({}, '', url.toString());
+              }}
+              className="grid h-7 w-7 place-items-center rounded-lg text-emerald-700 hover:bg-emerald-100 hover:text-emerald-900 dark:text-emerald-300 dark:hover:bg-emerald-500/20 transition-colors cursor-pointer"
+              title="Đóng thông báo"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {/* THÔNG BÁO KẾT QUẢ XOÁ — cố định mép trên màn hình, nổi trên cả modal chi tiết, để thấy
+            được dù đang cuộn giữa bảng hay đang mở chi tiết phiếu. Đặt mép trên chứ không đáy:
+            trên điện thoại, toast lỗi ở đáy che nút Đóng/In phiếu của modal. */}
+        {notice && (
+          <div
+            role={notice.tone === 'error' ? 'alert' : 'status'}
+            className={cn(
+              'fixed top-4 left-1/2 z-[70] flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-start justify-between gap-3 rounded-xl border p-3 text-sm shadow-lg',
+              notice.tone === 'ok'
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-950 dark:text-emerald-200'
+                : 'border-red-200 bg-red-50 text-red-900 dark:border-red-500/30 dark:bg-red-950 dark:text-red-200',
+            )}
+          >
+            <span>
+              {notice.tone === 'ok' ? '✅ ' : '⚠️ '}
+              {notice.text}
+            </span>
+            <button
+              type="button"
+              onClick={() => setNotice(null)}
+              className="grid h-6 w-6 shrink-0 place-items-center rounded-lg opacity-70 hover:opacity-100"
+              title="Đóng thông báo"
+            >
+              ✕
+            </button>
           </div>
         )}
 
@@ -406,6 +586,51 @@ function BorrowHistoryLogPageInner() {
 
         {/* THANH TÌM KIẾM VÀ BỘ LỌC TỔNG HỢP */}
         <section className={cn(cardClass, 'mt-4 p-3.5 sm:p-4')}>
+          {/* BỘ LỌC NHANH 1 CHẠM */}
+          <div className="mb-3.5 flex flex-wrap items-center gap-2 border-b border-slate-100 pb-3 dark:border-white/[0.06]">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 mr-1 flex items-center gap-1">
+              <span>⚡</span> Lọc nhanh:
+            </span>
+            {QUICK_FILTER_OPTIONS.map((opt) => {
+              const count = opt.badgeCount(quickFilterCounts);
+              const isActive = quickFilter === opt.key;
+              return (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => {
+                    changeFilter(() => {
+                      const next = isActive && opt.key !== 'ALL' ? 'ALL' : opt.key;
+                      setQuickFilter(next);
+                      const nextView = viewForQuickFilter(viewMode);
+                      if (nextView.resetStatus) setStatus('');
+                      setViewMode(nextView.viewMode);
+                    });
+                  }}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs transition-all cursor-pointer',
+                    isActive
+                      ? opt.activeClass
+                      : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/[0.1] dark:bg-white/[0.04] dark:text-slate-300 dark:hover:bg-white/[0.08]',
+                  )}
+                >
+                  <span>{opt.icon}</span>
+                  <span>{opt.label}</span>
+                  <span
+                    className={cn(
+                      'ml-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold',
+                      isActive
+                        ? 'bg-white/80 text-slate-900 dark:bg-black/40 dark:text-white'
+                        : opt.badgeStyle,
+                    )}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
             {/* Ô TÌM KIẾM TẤT CẢ CHỈ TIÊU */}
             <div className="lg:col-span-1">
@@ -461,6 +686,9 @@ function BorrowHistoryLogPageInner() {
               <span className="text-xs text-slate-500 dark:text-slate-400">
                 Đang lọc theo:{' '}
                 {[
+                  quickFilter !== 'ALL'
+                    ? `Lọc nhanh "${QUICK_FILTER_OPTIONS.find((o) => o.key === quickFilter)?.label}"`
+                    : '',
                   searchQuery ? `Từ khóa "${searchQuery}"` : '',
                   status ? `Trạng thái` : '',
                   from ? `Từ ${from}` : '',
@@ -471,7 +699,7 @@ function BorrowHistoryLogPageInner() {
               </span>
               <button
                 onClick={handleResetFilters}
-                className="text-xs font-semibold text-blue-600 hover:underline dark:text-blue-400"
+                className="text-xs font-semibold text-blue-600 hover:underline dark:text-blue-400 cursor-pointer"
               >
                 ✕ Xoá bộ lọc
               </button>
@@ -665,22 +893,56 @@ function BorrowHistoryLogPageInner() {
                               <div className="text-slate-400">đến {fmt(req.to_time)}</div>
                             </td>
                             <td className="px-4 py-3">
-                              <span
-                                className={cn(
-                                  'inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold',
-                                  REQUEST_TONE_CLASS[statusBadge.tone],
+                              <div className="flex flex-col gap-1 items-start">
+                                <span
+                                  className={cn(
+                                    'inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold',
+                                    REQUEST_TONE_CLASS[statusBadge.tone],
+                                  )}
+                                >
+                                  {statusBadge.label}
+                                </span>
+                                {isRequestOverdue(req.to_time, req.status) && (
+                                  <span className="inline-flex items-center gap-1 rounded-md bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700 dark:bg-red-500/20 dark:text-red-300">
+                                    <span>🚨</span> Quá hạn trả
+                                  </span>
                                 )}
-                              >
-                                {statusBadge.label}
-                              </span>
+                                {isRequestExpiringSoon(req.to_time, req.status) &&
+                                  !isRequestOverdue(req.to_time, req.status) && (
+                                    <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-500/20 dark:text-amber-300">
+                                      <span>⏰</span> Sắp hết hạn
+                                    </span>
+                                  )}
+                                {req.extension?.status === 'PENDING' && (
+                                  <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                                    ⏳ Chờ duyệt gia hạn
+                                  </span>
+                                )}
+                                {req.incidents && req.incidents.length > 0 && (
+                                  <span className="text-[10px] font-bold text-red-600 dark:text-red-400">
+                                    ⚠️ Có {req.incidents.length} sự cố
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="px-4 py-3 text-right">
-                              <button
-                                onClick={() => setSelectedRequest(req)}
-                                className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-blue-50 hover:text-blue-600 dark:border-white/[0.1] dark:text-slate-300 dark:hover:bg-blue-500/10 dark:hover:text-blue-400 transition-colors"
-                              >
-                                Xem
-                              </button>
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  onClick={() => setSelectedRequest(req)}
+                                  className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-blue-50 hover:text-blue-600 dark:border-white/[0.1] dark:text-slate-300 dark:hover:bg-blue-500/10 dark:hover:text-blue-400 transition-colors"
+                                >
+                                  Xem
+                                </button>
+                                {canDeleteRequest(req, { isCatalogManager: isManager }) && (
+                                  <button
+                                    onClick={() => setDeletingRequest(req)}
+                                    title={`Xoá phiếu ${req.request_code}`}
+                                    className="rounded-lg border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-50 dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-500/10 transition-colors"
+                                  >
+                                    Xoá
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         );
@@ -760,16 +1022,168 @@ function BorrowHistoryLogPageInner() {
 
                 <div className="flex items-center justify-between pt-2">
                   <span className="text-xs text-slate-400">Trạng thái</span>
-                  <span
-                    className={cn(
-                      'rounded-lg border px-2.5 py-1 text-xs font-semibold',
-                      REQUEST_TONE_CLASS[requestStatusBadge(selectedRequest.status).tone],
+                  <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                    <span
+                      className={cn(
+                        'rounded-lg border px-2.5 py-1 text-xs font-semibold',
+                        REQUEST_TONE_CLASS[requestStatusBadge(selectedRequest.status).tone],
+                      )}
+                    >
+                      {requestStatusBadge(selectedRequest.status).label}
+                    </span>
+                    {isRequestOverdue(selectedRequest.to_time, selectedRequest.status) && (
+                      <span className="inline-flex items-center gap-1 rounded-md bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700 dark:bg-red-500/20 dark:text-red-300">
+                        <span>🚨</span> Quá hạn trả
+                      </span>
                     )}
-                  >
-                    {requestStatusBadge(selectedRequest.status).label}
-                  </span>
+                  </div>
                 </div>
+
+                {/* THÔNG TIN GHI CHÚ TỪ NGƯỜI TẠO NẾU CÓ */}
+                {selectedRequest.note && (
+                  <div className="rounded-xl bg-slate-50 p-2.5 border border-slate-200 dark:bg-white/[0.03] dark:border-white/[0.08]">
+                    <span className="block text-[11px] font-semibold text-slate-500">Ghi chú mượn:</span>
+                    <p className="text-xs text-slate-800 dark:text-slate-200 mt-0.5">{selectedRequest.note}</p>
+                  </div>
+                )}
+
+                {/* THÔNG TIN XIN GIA HẠN NẾU CÓ */}
+                {selectedRequest.extension && (
+                  <div className="rounded-xl border border-amber-300 bg-amber-50/80 p-3 dark:border-amber-500/30 dark:bg-amber-950/20">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                        <span>🔄</span> Yêu cầu gia hạn mượn
+                      </span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        selectedRequest.extension.status === 'PENDING'
+                          ? 'bg-amber-200 text-amber-900 dark:bg-amber-500/20 dark:text-amber-300'
+                          : selectedRequest.extension.status === 'APPROVED'
+                          ? 'bg-emerald-200 text-emerald-900 dark:bg-emerald-500/20 dark:text-emerald-300'
+                          : 'bg-red-200 text-red-900 dark:bg-red-500/20 dark:text-red-300'
+                      }`}>
+                        {selectedRequest.extension.status === 'PENDING' ? 'Đang chờ duyệt' : selectedRequest.extension.status === 'APPROVED' ? 'Đã duyệt' : 'Từ chối'}
+                      </span>
+                    </div>
+                    <div className="mt-1.5 text-xs text-amber-900 dark:text-amber-200">
+                      <div>Thời gian đề xuất: <strong className="font-mono">{fmt(selectedRequest.extension.requested_to_time)}</strong></div>
+                      <div>Lý do: <em>"{selectedRequest.extension.reason}"</em></div>
+                      {selectedRequest.extension.rejection_reason && (
+                        <div className="text-red-600 dark:text-red-400 mt-1">Lý do từ chối: {selectedRequest.extension.rejection_reason}</div>
+                      )}
+                    </div>
+
+                    {/* NÚT DUYỆT GIA HẠN DÀNH CHO LEADER */}
+                    {isManager && selectedRequest.extension.status === 'PENDING' && (
+                      <div className="mt-3 pt-2 border-t border-amber-200 dark:border-amber-500/20">
+                        {rejectingExtension ? (
+                          <div className="space-y-2">
+                            <input
+                              type="text"
+                              placeholder="Nhập lý do từ chối gia hạn…"
+                              value={rejectionReason}
+                              onChange={(e) => setRejectionReason(e.target.value)}
+                              className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-900 outline-none focus:border-red-500 dark:border-white/[0.12] dark:bg-slate-800 dark:text-white"
+                            />
+                            <div className="flex gap-2 justify-end">
+                              <button
+                                type="button"
+                                onClick={() => setRejectingExtension(false)}
+                                className="rounded-lg px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-200 dark:text-slate-300"
+                              >
+                                Huỷ
+                              </button>
+                              <button
+                                type="button"
+                                disabled={decidingExtension}
+                                onClick={() => handleDecideExtension(selectedRequest, 'REJECTED')}
+                                className="rounded-lg bg-red-600 px-3 py-1 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-50"
+                              >
+                                {decidingExtension ? 'Đang gửi…' : 'Xác nhận từ chối'}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              disabled={decidingExtension}
+                              onClick={() => handleDecideExtension(selectedRequest, 'APPROVED')}
+                              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 disabled:opacity-50"
+                            >
+                              {decidingExtension ? 'Đang duyệt…' : '✓ Duyệt gia hạn'}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={decidingExtension}
+                              onClick={() => setRejectingExtension(true)}
+                              className="rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 dark:border-red-500/30 dark:bg-transparent"
+                            >
+                              ✕ Từ chối gia hạn
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* DANH SÁCH SỰ CỐ ĐÃ GHI NHẬN NẾU CÓ */}
+                {selectedRequest.incidents && selectedRequest.incidents.length > 0 && (
+                  <div className="rounded-xl border border-red-200 bg-red-50/70 p-3 dark:border-red-500/20 dark:bg-red-950/20">
+                    <span className="font-bold text-xs text-red-800 dark:text-red-300 flex items-center gap-1.5 mb-2">
+                      <span>⚠️</span> Sự cố đã báo cáo ({selectedRequest.incidents.length})
+                    </span>
+                    <div className="space-y-2">
+                      {selectedRequest.incidents.map((inc) => (
+                        <div key={inc.id} className="rounded-lg border border-red-100 bg-white/90 p-2 text-xs dark:border-red-500/20 dark:bg-slate-900/80">
+                          <div className="flex items-center justify-between">
+                            <strong className="text-red-900 dark:text-red-200">{incidentKindLabel(inc.kind)}</strong>
+                            <span className="font-mono text-[10px] font-semibold text-red-600">{inc.asset.asset_code}</span>
+                          </div>
+                          <p className="mt-0.5 text-slate-600 dark:text-slate-300">{inc.description}</p>
+                          {inc.photos.length > 0 && (
+                            <div className="mt-1.5 flex flex-wrap gap-1.5">
+                              {inc.photos.map((src) => (
+                                <a key={src} href={photoSrc(src)} target="_blank" rel="noreferrer">
+                                  <img src={photoSrc(src)} alt="Ảnh sự cố" className="h-12 w-12 rounded object-cover" />
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
+
+              {/* NÚT THAO TÁC SỰ CỐ & GIA HẠN KHI ĐANG MƯỢN */}
+              {HOLDING_STATUSES.includes(selectedRequest.status) && (
+                <div className="mt-4 flex flex-wrap items-center gap-2 pt-3 border-t border-slate-100 dark:border-white/[0.08]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const req = selectedRequest;
+                      setSelectedRequest(null);
+                      setIncidentModalRequest(req);
+                    }}
+                    className="flex items-center gap-1 rounded-xl border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300"
+                  >
+                    <span>⚠️</span> Báo sự cố máy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const req = selectedRequest;
+                      setSelectedRequest(null);
+                      setExtensionModalRequest(req);
+                    }}
+                    className="flex items-center gap-1 rounded-xl border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-800 hover:bg-blue-100 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300"
+                  >
+                    <span>🔄</span> Xin gia hạn mượn
+                  </button>
+                </div>
+              )}
 
               {canCancelRequest(selectedRequest, {
                 id: user?.id,
@@ -777,14 +1191,30 @@ function BorrowHistoryLogPageInner() {
               }) && (
                 <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/70 p-3 dark:border-amber-500/20 dark:bg-amber-500/10">
                   <p className="text-xs text-amber-900 dark:text-amber-200">
-                    Không cần mượn nữa? Huỷ phiếu để nhả giữ chỗ ngay cho người khác.
+                    Không cần mượn nữa? Huỷ phiếu để nhả giữ chỗ ngay cho người khác. Phiếu đã huỷ
+                    vẫn nằm trong nhật ký.
                   </p>
                   <button
                     onClick={() => cancel(selectedRequest)}
                     disabled={cancelling}
-                    className="mt-2 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-500/30 dark:bg-transparent"
+                    className="mt-2 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-500/30 dark:bg-transparent dark:text-red-400 dark:hover:bg-red-500/10"
                   >
                     {cancelling ? 'Đang huỷ…' : 'Huỷ phiếu này'}
+                  </button>
+                </div>
+              )}
+
+              {canDeleteRequest(selectedRequest, { isCatalogManager: isManager }) && (
+                <div className="mt-4 rounded-xl border border-red-200 bg-red-50/70 p-3 dark:border-red-500/20 dark:bg-red-500/10">
+                  <p className="text-xs text-red-900 dark:text-red-200">
+                    Không cần giữ phiếu này trong nhật ký? Xoá phiếu để ẩn khỏi danh sách và lịch
+                    sử mượn — khác với Huỷ, phiếu đã xoá không còn hiện ở đâu nữa.
+                  </p>
+                  <button
+                    onClick={() => setDeletingRequest(selectedRequest)}
+                    className="mt-2 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 dark:border-red-500/30 dark:bg-transparent dark:text-red-400 dark:hover:bg-red-500/10"
+                  >
+                    🗑️ Xoá phiếu này
                   </button>
                 </div>
               )}
@@ -812,12 +1242,63 @@ function BorrowHistoryLogPageInner() {
           </div>
         )}
 
-        {/* MODAL IN PHIẾU BÀN GIAO TOÀN DIỆN */}
-        <BorrowPrintModal
-          open={Boolean(printingRequest)}
-          onClose={() => setPrintingRequest(null)}
-          request={printingRequest}
+        {/* XÁC NHẬN XOÁ PHIẾU — đặt sau modal chi tiết để nổi lên trên khi mở từ trong đó */}
+        <ConfirmModal
+          isOpen={Boolean(deletingRequest)}
+          onClose={() => !deleting && setDeletingRequest(null)}
+          onConfirm={confirmDelete}
+          variant="danger"
+          isLoading={deleting}
+          title={`Xoá phiếu ${deletingRequest?.request_code ?? ''}?`}
+          description={
+            deletingRequest?.status === 'CLOSED'
+              ? 'Phiếu và các lượt mượn của nó sẽ không còn hiện trong nhật ký và lịch sử mượn của máy. Biên bản giao/nhận vẫn được lưu trên hệ thống để đối chiếu khi cần.'
+              : 'Phiếu sẽ không còn hiện trong nhật ký mượn. Dữ liệu vẫn được lưu trên hệ thống để đối chiếu khi cần.'
+          }
+          confirmText={deleting ? 'Đang xoá…' : 'Xoá phiếu'}
+          cancelText="Giữ lại"
         />
+
+        {/* MODAL BÁO CÁO SỰ CỐ */}
+        {incidentModalRequest && (
+          <IncidentReportModal
+            open={Boolean(incidentModalRequest)}
+            onClose={() => setIncidentModalRequest(null)}
+            request={incidentModalRequest}
+            onSuccess={() => {
+              load();
+            }}
+          />
+        )}
+
+        {/* MODAL XIN GIA HẠN */}
+        {extensionModalRequest && (
+          <ExtensionRequestModal
+            open={Boolean(extensionModalRequest)}
+            onClose={() => setExtensionModalRequest(null)}
+            request={extensionModalRequest}
+            onSuccess={() => {
+              load();
+            }}
+          />
+        )}
+
+        {/* MODAL IN PHIẾU BÀN GIAO TOÀN DIỆN */}
+        {printingRequest && (
+          <BorrowPrintModal
+            open={Boolean(printingRequest)}
+            onClose={() => setPrintingRequest(null)}
+            request={printingRequest}
+          />
+        )}
+
+        {/* MODAL QUÉT MÃ QR TẠO PHIẾU BẰNG ĐIỆN THOẠI */}
+        {mobileQrOpen && (
+          <MobileBorrowQRModal
+            open={mobileQrOpen}
+            onClose={() => setMobileQrOpen(false)}
+          />
+        )}
       </div>
     </div>
   );

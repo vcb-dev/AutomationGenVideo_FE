@@ -127,6 +127,10 @@ function SidebarContent({
       return 'dashboard-general';
     }
 
+    if (path.startsWith('/dashboard/equipment')) {
+      return 'mems';
+    }
+
     if (
       path.startsWith('/dashboard/manager/user-activity') ||
       path.startsWith('/dashboard/editor-management') ||
@@ -255,6 +259,10 @@ function SidebarContent({
             items: [
               { label: 'Kho thiết bị', href: '/dashboard/equipment', icon: LayoutGrid },
               { label: 'Tạo phiếu mượn', href: '/dashboard/equipment/new-request', icon: FileText },
+              { label: 'Nhật ký mượn', href: '/dashboard/equipment/borrow-history', icon: BookOpen },
+              { label: 'Duyệt phiếu', href: '/dashboard/equipment/approvals', icon: CheckSquare },
+              { label: 'Bàn giao thiết bị', href: '/dashboard/equipment/handover', icon: ClipboardList },
+              { label: 'Nhận trả thiết bị', href: '/dashboard/equipment/returns', icon: Activity },
             ]
           }
         ]

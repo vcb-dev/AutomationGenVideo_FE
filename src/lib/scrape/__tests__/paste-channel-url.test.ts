@@ -1,4 +1,4 @@
-import { detectPlatform } from '../detect-channel-platform';
+import { detectPlatform } from '@/app/dashboard/externalChannels/lib/bulk-channel-helpers';
 import { normalizeThreadsUsername, parseMultipleUsernames } from '../threads-helpers';
 
 /**

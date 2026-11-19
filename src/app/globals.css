@@ -110,6 +110,22 @@
   /* Nền hex sáng hardcode */
   .dark .bg-\[\#F8FAFC\] { background-color: #0f172a; }
 
+  /* Bảng màu riêng của tab Tạo ảnh sản phẩm (lớp bọc .product-image-palette) */
+  .dark .product-image-palette .text-\[\#1b1b1d\], .dark .product-image-palette .hover\:text-\[\#1b1b1d\]:hover { color: #f1f5f9; }
+  .dark .product-image-palette .text-\[\#464554\], .dark .product-image-palette .text-\[\#5b5970\] { color: #cbd5e1; }
+  .dark .product-image-palette .text-\[\#6b6a78\], .dark .product-image-palette .text-\[\#9c9aa8\] { color: #94a3b8; }
+  .dark .product-image-palette .text-\[\#c7c4d7\] { color: #64748b; }
+  .dark .product-image-palette .text-\[\#4441cc\], .dark .product-image-palette .hover\:text-\[\#4441cc\]:hover { color: #a5b4fc; }
+  .dark .product-image-palette .bg-\[\#fafafb\], .dark .product-image-palette .bg-\[\#fcfaff\],
+  .dark .product-image-palette .bg-\[\#f4f3f8\] { background-color: #0f172a; }
+  .dark .product-image-palette .bg-\[\#f6f5ff\] { background-color: rgb(99 102 241 / 0.12); }
+  .dark .product-image-palette .border-\[\#e2e0ea\], .dark .product-image-palette .border-\[\#f0eff5\],
+  .dark .product-image-palette .hover\:border-\[\#e2e0ea\]:hover { border-color: #1e293b; }
+  .dark .product-image-palette .border-\[\#d5d3e0\], .dark .product-image-palette .border-\[\#c7c4d7\],
+  .dark .product-image-palette .hover\:border-\[\#c7c4d7\]:hover { border-color: #334155; }
+  .dark .product-image-palette input:not([type='range']):not([type='checkbox']):not([type='file']),
+  .dark .product-image-palette textarea { background-color: #0f172a; color: #f1f5f9; }
+
   /* ── Badge/chip pastel: bg màu-50/100 → cùng màu nhưng mờ tối ─────────── */
   .dark .bg-blue-50    { background-color: rgb(59 130 246 / 0.10); }
   .dark .bg-blue-100   { background-color: rgb(59 130 246 / 0.16); }

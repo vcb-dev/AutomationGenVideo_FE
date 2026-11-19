@@ -129,7 +129,7 @@ export function TasksTable({
                     </td>
                     <td className="px-5 py-4 max-w-[300px]">
                       <p className="font-semibold text-slate-800 truncate text-base group-hover:text-indigo-700 transition-colors">
-                        {contentTitle ?? <span className="text-slate-400 italic">Không có tiêu đề</span>}
+                        {contentTitle ?? <span className="text-slate-400 italic">{task.task_type === 'AUTO' ? 'Chưa chọn content' : 'Không có tiêu đề'}</span>}
                       </p>
                       {productName && (
                         <p className="text-xs text-slate-400 mt-0.5 truncate">{productName}</p>

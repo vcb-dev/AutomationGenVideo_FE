@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Search, Plus, X, Loader2, Link as LinkIcon,
   Facebook, Instagram, Music2, Youtube, Globe,
   Pencil, Trash2, ExternalLink, Building2,
-  ChevronDown, Tag, SlidersHorizontal, Sparkles, CheckCircle2
+  ChevronDown, SlidersHorizontal, Sparkles, Users, Filter
 } from 'lucide-react';
 
 import { motion, AnimatePresence } from 'framer-motion';
@@ -13,6 +13,7 @@ import toast from 'react-hot-toast';
 import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
 import { fetchWithAuth } from '@/lib/api-client';
+import type { Team } from '@/types/task-auto';
 import { SapoTiktokSyncModal } from '../social/channels/components/SapoTiktokSyncModal';
 
 interface Channel {
@@ -22,6 +23,8 @@ interface Channel {
   channel_id?: string | null;
   link_channel?: string | null;
   status?: string | null;
+  team_name?: string | null;
+  owner_name?: string | null;
   team?: { id: string; name: string } | null;
   owner?: { id: string; full_name: string; email: string } | null;
   created_at: string;
@@ -31,7 +34,7 @@ interface Channel {
 interface ChannelFormData {
   name: string; platform: string;
   link_channel: string; status: string;
-  owner_id: string;
+  owner_id: string; team_id: string;
 }
 
 interface OwnerOption {
@@ -44,7 +47,7 @@ interface OwnerOption {
 const EMPTY_FORM: ChannelFormData = {
   name: '', platform: 'facebook',
   link_channel: '', status: 'đang hoạt động',
-  owner_id: '',
+  owner_id: '', team_id: '',
 };
 
 const PLATFORMS = [
@@ -77,6 +80,31 @@ function getStatus(v?: string | null) {
   return STATUS_MAP[v?.toLowerCase() ?? ''] ?? { label: v ?? '—', dot: 'bg-slate-400', bg: 'bg-slate-100', text: 'text-slate-500' };
 }
 
+const ALL_ORG_FILTER = 'all';
+const UNASSIGNED_FILTER = '__unassigned__';
+
+function normalizeFilterValue(value?: string | null) {
+  return value?.trim().toLocaleLowerCase('vi') ?? '';
+}
+
+function getChannelTeamName(channel: Channel) {
+  return channel.team_name?.trim() || channel.team?.name?.trim() || '';
+}
+
+function getChannelOwnerName(channel: Channel) {
+  return channel.owner_name?.trim() || channel.owner?.full_name?.trim() || '';
+}
+
+function getTeamFilterValue(channel: Channel) {
+  return normalizeFilterValue(getChannelTeamName(channel)) || UNASSIGNED_FILTER;
+}
+
+function getMemberFilterValue(channel: Channel) {
+  const team = getTeamFilterValue(channel);
+  const owner = normalizeFilterValue(getChannelOwnerName(channel)) || UNASSIGNED_FILTER;
+  return `${team}::${owner}`;
+}
+
 export default function InternalChannelsPage() {
   const { token, user } = useAuthStore();
   const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
@@ -85,6 +113,7 @@ export default function InternalChannelsPage() {
   const isManager = (user as any)?.roles?.includes(UserRole.MANAGER);
   // ADMIN/MANAGER có toàn quyền sửa/xóa kênh, không giới hạn team (khớp quyền BE)
   const canManage = isLeader || isAdmin || isManager;
+  const canFilterOrganization = isAdmin || isManager;
   const userTeam = (user as any)?.team ?? null;
   const userId = (user as any)?.id ?? null;
 
@@ -93,6 +122,8 @@ export default function InternalChannelsPage() {
   const [search,        setSearch]        = useState('');
   const [platFilter,    setPlatFilter]    = useState('all');
   const [statusFilter,  setStatusFilter]  = useState('all');
+  const [teamFilter,    setTeamFilter]    = useState(ALL_ORG_FILTER);
+  const [memberFilter,  setMemberFilter]  = useState(ALL_ORG_FILTER);
   const [showStatusDrop, setShowStatusDrop] = useState(false);
   const [showModal,     setShowModal]     = useState(false);
   const [editTarget,    setEditTarget]    = useState<Channel | null>(null);
@@ -101,6 +132,7 @@ export default function InternalChannelsPage() {
   const [deleteTarget,  setDeleteTarget]  = useState<Channel | null>(null);
   const [deleting,      setDeleting]      = useState(false);
   const [teamMembers,   setTeamMembers]   = useState<OwnerOption[]>([]);
+  const [assignTeams,   setAssignTeams]   = useState<Team[]>([]);
 
   const [showMetaModal, setShowMetaModal] = useState(false);
   const [showSapoTiktokModal, setShowSapoTiktokModal] = useState(false);
@@ -213,20 +245,106 @@ export default function InternalChannelsPage() {
     })();
   }, [apiUrl, token, showActionsCol]);
 
+  // Team + thành viên để ADMIN/MANAGER chọn team và người cầm kênh khi thêm kênh
+  useEffect(() => {
+    if (!canFilterOrganization) return;
+    (async () => {
+      try {
+        const res = await fetchWithAuth(`${apiUrl}/task-auto/teams`);
+        if (!res.ok) return;
+        const data: Team[] = await res.json();
+        setAssignTeams(Array.isArray(data) ? data.filter(t => t.is_active !== false) : []);
+      } catch { /* không chặn UI nếu tải danh sách team thất bại */ }
+    })();
+  }, [apiUrl, canFilterOrganization]);
+
   // ─── FILTER LOGIC ───
-  const filtered = channels.filter(c => {
+  const teamOptions = useMemo(() => {
+    const options = new Map<string, { value: string; label: string; count: number }>();
+    channels.forEach(channel => {
+      const value = getTeamFilterValue(channel);
+      const label = getChannelTeamName(channel) || 'Chưa gán team';
+      const current = options.get(value);
+      options.set(value, { value, label: current?.label ?? label, count: (current?.count ?? 0) + 1 });
+    });
+    return [...options.values()].sort((a, b) => {
+      if (a.value === UNASSIGNED_FILTER) return 1;
+      if (b.value === UNASSIGNED_FILTER) return -1;
+      return a.label.localeCompare(b.label, 'vi');
+    });
+  }, [channels]);
+
+  const teamScopedChannels = useMemo(
+    () => channels.filter(channel =>
+      teamFilter === ALL_ORG_FILTER || getTeamFilterValue(channel) === teamFilter,
+    ),
+    [channels, teamFilter],
+  );
+
+  const memberOptions = useMemo(() => {
+    const options = new Map<string, { value: string; label: string; teamName: string; count: number }>();
+    teamScopedChannels.forEach(channel => {
+      const value = getMemberFilterValue(channel);
+      const label = getChannelOwnerName(channel) || 'Chưa gán thành viên';
+      const teamName = getChannelTeamName(channel) || 'Chưa gán team';
+      const current = options.get(value);
+      options.set(value, {
+        value,
+        label: current?.label ?? label,
+        teamName: current?.teamName ?? teamName,
+        count: (current?.count ?? 0) + 1,
+      });
+    });
+    return [...options.values()].sort((a, b) => {
+      const aUnassigned = a.value.endsWith(`::${UNASSIGNED_FILTER}`);
+      const bUnassigned = b.value.endsWith(`::${UNASSIGNED_FILTER}`);
+      if (aUnassigned !== bUnassigned) return aUnassigned ? 1 : -1;
+      return a.label.localeCompare(b.label, 'vi') || a.teamName.localeCompare(b.teamName, 'vi');
+    });
+  }, [teamScopedChannels]);
+
+  useEffect(() => {
+    if (
+      canFilterOrganization &&
+      teamFilter !== ALL_ORG_FILTER &&
+      !teamOptions.some(option => option.value === teamFilter)
+    ) {
+      setTeamFilter(ALL_ORG_FILTER);
+      setMemberFilter(ALL_ORG_FILTER);
+    }
+  }, [canFilterOrganization, teamFilter, teamOptions]);
+
+  useEffect(() => {
+    if (
+      canFilterOrganization &&
+      memberFilter !== ALL_ORG_FILTER &&
+      !memberOptions.some(option => option.value === memberFilter)
+    ) {
+      setMemberFilter(ALL_ORG_FILTER);
+    }
+  }, [canFilterOrganization, memberFilter, memberOptions]);
+
+  const organizationFilteredChannels = useMemo(
+    () => teamScopedChannels.filter(channel =>
+      memberFilter === ALL_ORG_FILTER || getMemberFilterValue(channel) === memberFilter,
+    ),
+    [teamScopedChannels, memberFilter],
+  );
+
+  const filtered = organizationFilteredChannels.filter(c => {
     const okPlat   = platFilter === 'all'   || c.platform?.toLowerCase() === platFilter;
     const okStatus = statusFilter === 'all' || c.status?.toLowerCase() === statusFilter;
-    const q        = search.toLowerCase();
+    const q        = normalizeFilterValue(search);
     const okSearch = !q
-      || c.name.toLowerCase().includes(q)
-      || c.owner?.full_name?.toLowerCase().includes(q)
-      || c.platform?.toLowerCase().includes(q);
+      || normalizeFilterValue(c.name).includes(q)
+      || normalizeFilterValue(getChannelOwnerName(c)).includes(q)
+      || normalizeFilterValue(getChannelTeamName(c)).includes(q)
+      || normalizeFilterValue(c.platform).includes(q);
     return okPlat && okStatus && okSearch;
   });
 
-  // Count theo status (dùng base sau khi lọc platform)
-  const afterPlatform = channels.filter(c =>
+  // Count theo status (dùng base sau khi lọc team, thành viên và platform)
+  const afterPlatform = organizationFilteredChannels.filter(c =>
     platFilter === 'all' || c.platform?.toLowerCase() === platFilter,
   );
 
@@ -235,7 +353,7 @@ export default function InternalChannelsPage() {
     setEditTarget(ch);
     setForm({ name: ch.name, platform: ch.platform ?? 'facebook',
       link_channel: ch.link_channel ?? '', status: ch.status ?? 'đang hoạt động',
-      owner_id: ch.owner?.id ?? '' });
+      owner_id: ch.owner?.id ?? '', team_id: ch.team?.id ?? '' });
     setShowModal(true);
   };
   const closeModal = () => { if (saving) return; setShowModal(false); setEditTarget(null); };
@@ -253,20 +371,39 @@ export default function InternalChannelsPage() {
     return base;
   })();
 
-  const clearAllFilters = () => { setSearch(''); setPlatFilter('all'); setStatusFilter('all'); };
-  const hasFilter = search || platFilter !== 'all' || statusFilter !== 'all';
+  // Thêm kênh (ADMIN/MANAGER): người cầm kênh chọn trong thành viên của team đã chọn
+  const canAssignOnCreate = !editTarget && canFilterOrganization;
+  const createOwnerOptions: OwnerOption[] = (assignTeams.find(t => t.id === form.team_id)?.members ?? [])
+    .flatMap(m => (m.user ? [{ id: m.user.id, full_name: m.user.full_name, email: m.user.email }] : []))
+    .sort((a, b) => a.full_name.localeCompare(b.full_name, 'vi'));
+  const missingAssignment = canAssignOnCreate && (!form.team_id || !form.owner_id);
+
+  const clearOrganizationFilters = () => {
+    setTeamFilter(ALL_ORG_FILTER);
+    setMemberFilter(ALL_ORG_FILTER);
+  };
+  const clearAllFilters = () => {
+    setSearch('');
+    setPlatFilter('all');
+    setStatusFilter('all');
+    clearOrganizationFilters();
+  };
+  const hasOrganizationFilter = teamFilter !== ALL_ORG_FILTER || memberFilter !== ALL_ORG_FILTER;
+  const hasFilter = Boolean(search) || platFilter !== 'all' || statusFilter !== 'all' || hasOrganizationFilter;
 
   const handleSave = async () => {
     if (!form.name.trim()) { toast.error('Tên kênh không được để trống'); return; }
+    if (canAssignOnCreate && !form.team_id) { toast.error('Vui lòng chọn team'); return; }
+    if (canAssignOnCreate && !form.owner_id) { toast.error('Vui lòng chọn người cầm kênh'); return; }
     setSaving(true);
     try {
       const isEdit = !!editTarget;
-      // owner_id chỉ có ý nghĩa khi sửa (create luôn tự gán owner = người tạo ở BE);
-      // để trống nghĩa là "không đổi chủ kênh".
-      const { owner_id, ...rest } = form;
-      const body: Record<string, string> = isEdit && owner_id
-        ? { ...rest, owner_id }
-        : rest;
+      // Sửa: owner_id để trống nghĩa là "không đổi chủ kênh", team không đổi được.
+      // Thêm: chỉ ADMIN/MANAGER gửi team_id + owner_id; role khác BE tự gán theo người tạo.
+      const { owner_id, team_id, ...rest } = form;
+      const body: Record<string, string> = isEdit
+        ? (owner_id ? { ...rest, owner_id } : rest)
+        : (canAssignOnCreate ? { ...rest, team_id, owner_id } : rest);
       const res = await fetchWithAuth(
         isEdit ? `${apiUrl}/channels/${editTarget!.id}` : `${apiUrl}/channels`,
         { method: isEdit ? 'PATCH' : 'POST',
@@ -303,10 +440,10 @@ export default function InternalChannelsPage() {
 
       {/* ─── HERO HEADER ─── */}
       <div className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-8 pt-6 pb-0">
+        <div className="max-w-6xl mx-auto px-4 sm:px-8 pt-6 pb-0">
 
           {/* Top row */}
-          <div className="flex items-start justify-between gap-4 mb-6">
+          <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-4 mb-6">
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-200 flex-shrink-0">
                 <Building2 className="w-7 h-7 text-white" />
@@ -321,15 +458,15 @@ export default function InternalChannelsPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3 pt-1">
+            <div className="flex flex-wrap items-center gap-3 pt-1 w-full xl:w-auto">
               {/* Search */}
-              <div className="relative">
+              <div className="relative w-full sm:w-auto">
                 <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
                 <input
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  placeholder="Tìm kênh, owner, platform…"
-                  className="pl-11 pr-10 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-base text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-indigo-400 focus:bg-white w-72 transition-all"
+                  placeholder="Tìm kênh, thành viên, team…"
+                  className="pl-11 pr-10 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-base text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-indigo-400 focus:bg-white w-full sm:w-72 transition-all"
                 />
                 {search && (
                   <button onClick={() => setSearch('')}
@@ -339,7 +476,7 @@ export default function InternalChannelsPage() {
                 )}
               </div>
               {canManage && (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button onClick={openMetaImport}
                     className="flex items-center gap-2 px-4 py-3 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-sm font-bold rounded-xl transition-all active:scale-95 whitespace-nowrap">
                     <Sparkles className="w-4 h-4 text-blue-600" />
@@ -364,8 +501,8 @@ export default function InternalChannelsPage() {
           {/* Platform filter tabs */}
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
             {PLATFORMS.map(p => {
-              const count = p.value === 'all' ? channels.length
-                : channels.filter(c => c.platform?.toLowerCase() === p.value).length;
+              const count = p.value === 'all' ? organizationFilteredChannels.length
+                : organizationFilteredChannels.filter(c => c.platform?.toLowerCase() === p.value).length;
               const active = platFilter === p.value;
               return (
                 <button key={p.value} onClick={() => setPlatFilter(p.value)}
@@ -387,7 +524,89 @@ export default function InternalChannelsPage() {
       </div>
 
       {/* ─── CONTENT ─── */}
-      <div className="max-w-6xl mx-auto px-8 pt-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-8 pt-8">
+
+        {/* Bộ lọc phạm vi — ADMIN/MANAGER nhìn thấy dữ liệu của tất cả team */}
+        {canFilterOrganization && !loading && channels.length > 0 && (
+          <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-col lg:flex-row lg:items-end gap-4">
+              <div className="flex items-center gap-3 lg:pb-2">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center flex-shrink-0">
+                  <Filter className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-slate-800">Lọc phạm vi quản lý</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Chọn team trước để thu hẹp danh sách thành viên</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1">
+                <div>
+                  <label htmlFor="channel-team-filter" className="block text-xs font-bold text-slate-500 mb-1.5">
+                    Team
+                  </label>
+                  <div className="relative">
+                    <select
+                      id="channel-team-filter"
+                      value={teamFilter}
+                      onChange={e => {
+                        setTeamFilter(e.target.value);
+                        setMemberFilter(ALL_ORG_FILTER);
+                      }}
+                      className="w-full min-h-11 appearance-none rounded-xl border border-slate-200 bg-slate-50 pl-3.5 pr-10 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
+                    >
+                      <option value={ALL_ORG_FILTER}>Tất cả team ({teamOptions.length})</option>
+                      {teamOptions.map(option => (
+                        <option key={option.value} value={option.value}>
+                          {option.label} ({option.count} kênh)
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="channel-member-filter" className="block text-xs font-bold text-slate-500 mb-1.5">
+                    Thành viên
+                  </label>
+                  <div className="relative">
+                    <Users className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <select
+                      id="channel-member-filter"
+                      value={memberFilter}
+                      onChange={e => setMemberFilter(e.target.value)}
+                      className="w-full min-h-11 appearance-none rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-10 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
+                    >
+                      <option value={ALL_ORG_FILTER}>Tất cả thành viên ({memberOptions.length})</option>
+                      {memberOptions.map(option => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}{teamFilter === ALL_ORG_FILTER ? ` · ${option.teamName}` : ''} ({option.count} kênh)
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between lg:justify-end gap-3 lg:pb-2">
+                <span className="text-sm text-slate-500 whitespace-nowrap">
+                  <strong className="text-slate-800">{organizationFilteredChannels.length}</strong> kênh
+                </span>
+                {hasOrganizationFilter && (
+                  <button
+                    type="button"
+                    onClick={clearOrganizationFilters}
+                    className="min-h-11 px-3.5 rounded-xl border border-indigo-200 bg-indigo-50 text-sm font-bold text-indigo-700 hover:bg-indigo-100 transition-colors whitespace-nowrap"
+                  >
+                    Xóa lọc nhóm
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Loading */}
         {loading && (
@@ -422,16 +641,16 @@ export default function InternalChannelsPage() {
 
         {/* Table */}
         {!loading && channels.length > 0 && (
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-x-auto">
 
             {/* Column headers */}
-            <div className={`grid px-7 py-4 border-b border-slate-100 bg-slate-50
+            <div className={`grid min-w-[900px] px-7 py-4 border-b border-slate-100 bg-slate-50
               ${showActionsCol
                 ? 'grid-cols-[2fr_1fr_1fr_1fr_88px]'
                 : 'grid-cols-[2fr_1fr_1fr_1fr]'} gap-6`}>
               <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Tên kênh</span>
               <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Platform</span>
-              <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Owner</span>
+              <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Owner / Team</span>
 
               {/* ── Cột Trạng thái — dropdown filter ── */}
               <div className="relative" ref={statusDropRef}>
@@ -495,7 +714,7 @@ export default function InternalChannelsPage() {
 
             {/* No results */}
             {filtered.length === 0 ? (
-              <div className="py-24 flex flex-col items-center text-slate-400">
+              <div className="min-w-[900px] py-24 flex flex-col items-center text-slate-400">
                 <Search className="w-12 h-12 mb-4 opacity-25" />
                 <p className="text-lg font-bold text-slate-500">Không tìm thấy kênh nào</p>
                 <p className="text-sm mt-2 text-slate-400">Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm</p>
@@ -513,7 +732,7 @@ export default function InternalChannelsPage() {
                     <motion.div key={ch.id}
                       initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                       transition={{ delay: idx * 0.02 }}
-                      className={`grid px-7 py-5 items-center hover:bg-slate-50/80 transition-colors group
+                      className={`grid min-w-[900px] px-7 py-5 items-center hover:bg-slate-50/80 transition-colors group
                         ${showActionsCol
                           ? 'grid-cols-[2fr_1fr_1fr_1fr_88px]'
                           : 'grid-cols-[2fr_1fr_1fr_1fr]'} gap-6`}>
@@ -545,10 +764,13 @@ export default function InternalChannelsPage() {
                       </div>
 
                       {/* Owner */}
-                      <div>
-                        {ch.owner?.full_name
-                          ? <span className="text-base font-medium text-slate-600">{ch.owner.full_name}</span>
-                          : <span className="text-base text-slate-300">—</span>}
+                      <div className="min-w-0">
+                        {getChannelOwnerName(ch)
+                          ? <p className="text-base font-medium text-slate-600 truncate">{getChannelOwnerName(ch)}</p>
+                          : <p className="text-base text-slate-300">Chưa gán</p>}
+                        {getChannelTeamName(ch) && (
+                          <p className="text-xs text-slate-400 mt-1 truncate">{getChannelTeamName(ch)}</p>
+                        )}
                       </div>
 
                       {/* Status badge */}
@@ -585,7 +807,7 @@ export default function InternalChannelsPage() {
             )}
 
             {/* Table footer */}
-            <div className="px-7 py-4 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between">
+            <div className="min-w-[900px] px-7 py-4 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between">
               <p className="text-sm text-slate-400 font-medium">
                 {filtered.length < channels.length
                   ? <>Đang lọc <span className="font-bold text-slate-600">{filtered.length}</span> / {channels.length} kênh</>
@@ -624,7 +846,11 @@ export default function InternalChannelsPage() {
                   <div>
                     <h2 className="text-xl font-bold text-slate-900">{editTarget ? 'Sửa kênh' : 'Thêm kênh mới'}</h2>
                     <p className="text-sm text-slate-400 mt-0.5">
-                      {editTarget ? editTarget.name : 'Kênh sẽ tự động gán vào team của bạn'}
+                      {editTarget
+                        ? editTarget.name
+                        : canAssignOnCreate
+                          ? 'Chọn team và người cầm kênh'
+                          : 'Kênh sẽ tự động gán vào team của bạn'}
                     </p>
                   </div>
                 </div>
@@ -684,6 +910,57 @@ export default function InternalChannelsPage() {
                   </div>
                 </div>
 
+                {canAssignOnCreate && (
+                  <>
+                    <div>
+                      <label htmlFor="create-channel-team" className={labelCls}>
+                        Team <span className="text-red-400 font-normal">*</span>
+                      </label>
+                      <div className="relative">
+                        <select id="create-channel-team" value={form.team_id}
+                          onChange={e => setForm(f => ({ ...f, team_id: e.target.value, owner_id: '' }))}
+                          className={`${inputCls} appearance-none pr-10 cursor-pointer`}>
+                          <option value="">-- Chọn team --</option>
+                          {assignTeams.map(t => (
+                            <option key={t.id} value={t.id}>{t.name}</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label htmlFor="create-channel-owner" className={labelCls}>
+                        Người cầm kênh <span className="text-red-400 font-normal">*</span>
+                      </label>
+                      <div className="relative">
+                        <Users className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
+                        <select id="create-channel-owner" value={form.owner_id}
+                          disabled={!form.team_id || createOwnerOptions.length === 0}
+                          aria-describedby="create-channel-owner-hint"
+                          onChange={e => setForm(f => ({ ...f, owner_id: e.target.value }))}
+                          className={`${inputCls} appearance-none pl-11 pr-10 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed`}>
+                          <option value="">-- Chọn người cầm kênh --</option>
+                          {createOwnerOptions.map(m => (
+                            <option key={m.id} value={m.id}>
+                              {m.full_name}{m.email ? ` (${m.email})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
+                      </div>
+                      <p id="create-channel-owner-hint"
+                        className={`text-xs mt-1.5 ${form.team_id && createOwnerOptions.length === 0 ? 'text-orange-600' : 'text-slate-400'}`}>
+                        {!form.team_id
+                          ? 'Chọn team trước để hiện danh sách thành viên'
+                          : createOwnerOptions.length === 0
+                            ? 'Team này chưa có thành viên đang hoạt động'
+                            : `${createOwnerOptions.length} thành viên trong team`}
+                      </p>
+                    </div>
+                  </>
+                )}
+
                 {editTarget && (
                   <div>
                     <label className={labelCls}>Chủ kênh (Owner)</label>
@@ -709,7 +986,7 @@ export default function InternalChannelsPage() {
                   className="flex-1 py-4 border-2 border-slate-200 text-slate-600 text-base font-bold rounded-2xl hover:bg-slate-50 transition-colors">
                   Hủy
                 </button>
-                <button onClick={handleSave} disabled={saving || !form.name.trim()}
+                <button onClick={handleSave} disabled={saving || !form.name.trim() || missingAssignment}
                   className="flex-[2] py-4 bg-indigo-600 hover:bg-indigo-700 text-white text-base font-bold rounded-2xl transition-all shadow-lg shadow-indigo-200 disabled:opacity-40 flex items-center justify-center gap-2.5">
                   {saving && <Loader2 className="w-5 h-5 animate-spin" />}
                   {saving ? 'Đang lưu...' : editTarget ? 'Lưu thay đổi' : 'Thêm kênh'}

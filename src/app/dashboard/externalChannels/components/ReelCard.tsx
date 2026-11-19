@@ -1,9 +1,11 @@
 'use client';
 
+import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { Eye, ThumbsUp, ChatCircle, ShareNetwork, PaperPlaneTilt, CircleNotch } from '@phosphor-icons/react';
-import { ScrapedReel } from '@/services/scraperService';
+import { Eye, ThumbsUp, ChatCircle, ShareNetwork, PaperPlaneTilt, CircleNotch, Trash } from '@phosphor-icons/react';
+import { ScrapedReel, scraperService } from '@/services/scraperService';
+import { useAuthStore } from '@/store/auth-store';
 import { videoLibraryService } from '@/services/videoLibraryService';
 import { useSubmitVideoToLibrary } from '@/hooks/useProposeVideo';
 interface ReelCardProps {
@@ -51,8 +53,53 @@ export default function ReelCard({ reel }: ReelCardProps) {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const { token } = useAuthStore();
+  const [isDeleted, setIsDeleted] = useState(false);
+
+  const hideMutation = useMutation({
+    mutationFn: () => {
+      if (!token) throw new Error('Chưa đăng nhập');
+      return scraperService.hideVideo(token, 'facebook', reel.post_id);
+    },
+    onSuccess: () => {
+      setIsDeleted(true);
+      toast(
+        (t) => (
+          <div className="flex items-center justify-between gap-3 text-xs">
+            <span>Đã ẩn Reel khỏi danh sách</span>
+            <button
+              onClick={() => {
+                toast.dismiss(t.id);
+                restoreMutation.mutate();
+              }}
+              className="px-2 py-0.5 font-bold bg-primary text-primary-foreground rounded hover:opacity-90 transition-opacity cursor-pointer"
+            >
+              Hoàn tác
+            </button>
+          </div>
+        ),
+        { duration: 5000, icon: '🗑️' }
+      );
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const restoreMutation = useMutation({
+    mutationFn: () => {
+      if (!token) throw new Error('Chưa đăng nhập');
+      return scraperService.restoreVideo(token, 'facebook', reel.post_id);
+    },
+    onSuccess: () => {
+      setIsDeleted(false);
+      toast.success('Đã khôi phục Reel về danh sách');
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  if (isDeleted) return null;
+
   return (
-    <div className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg hover:scale-[1.01] transition-all duration-200 flex flex-col">
+    <div className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg hover:scale-[1.01] transition-all duration-200 flex flex-col relative">
       {/* Thumbnail */}
       <a
         href={reel.url}
@@ -73,6 +120,27 @@ export default function ReelCard({ reel }: ReelCardProps) {
             onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
           />
         ) : null}
+
+        {/* Nút xoá nhanh trên ảnh preview khi hover */}
+        <div className="absolute top-2 right-2 flex items-center gap-1.5 z-10">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              hideMutation.mutate();
+            }}
+            disabled={hideMutation.isPending}
+            title="Xoá / Ẩn Reel không phù hợp"
+            className="p-1.5 bg-black/60 hover:bg-rose-600 text-white rounded-md backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-all shadow-sm cursor-pointer"
+          >
+            {hideMutation.isPending ? (
+              <CircleNotch size={14} className="animate-spin" />
+            ) : (
+              <Trash size={14} weight="bold" />
+            )}
+          </button>
+        </div>
 
         {/* Metrics overlay */}
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-2.5 pb-2.5 pt-8">
@@ -116,7 +184,7 @@ export default function ReelCard({ reel }: ReelCardProps) {
           </div>
         )}
 
-        <div className="flex items-center justify-between gap-2 mt-auto">
+        <div className="flex items-center justify-between gap-2 mt-auto pt-1">
           {/* Date */}
           <p className="text-xs text-slate-400">
             {new Date(reel.date_posted).toLocaleDateString('vi-VN')}
@@ -124,7 +192,7 @@ export default function ReelCard({ reel }: ReelCardProps) {
           <button
             onClick={() => proposeMutation.mutate()}
             disabled={proposeMutation.isPending || proposeMutation.isSuccess}
-            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-primary border border-primary/30 rounded-md hover:bg-primary/10 disabled:opacity-50 transition-colors flex-shrink-0"
+            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-primary border border-primary/30 rounded-md hover:bg-primary/10 disabled:opacity-50 transition-colors flex-shrink-0 cursor-pointer"
           >
             {proposeMutation.isPending ? (
               <CircleNotch size={12} weight="bold" className="animate-spin" />

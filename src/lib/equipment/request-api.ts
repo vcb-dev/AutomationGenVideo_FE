@@ -35,6 +35,32 @@ export interface ApprovalRecord {
   decided_at: string;
 }
 
+export interface RequestExtensionInfo {
+  id: string;
+  requested_to_time: string;
+  reason: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  requested_by: string;
+  requested_at: string;
+  decided_by: string | null;
+  decided_at: string | null;
+  rejection_reason: string | null;
+}
+
+export type IncidentKind = 'CONDITION_WORSENED' | 'MISSING_ACCESSORY' | 'OVERDUE';
+
+export interface RequestIncidentItem {
+  id: string;
+  asset_id: string;
+  kind: IncidentKind;
+  description: string;
+  status: string;
+  created_at: string;
+  reported_by: string | null;
+  asset: { id: string; asset_code: string; serial_number: string | null };
+  photos: string[];
+}
+
 export interface BorrowRequest {
   id: string;
   request_code: string;
@@ -59,6 +85,14 @@ export interface BorrowRequest {
   approved_levels: number;
   /** Cấp kế tiếp chờ ai ký; null nghĩa là đã đủ chữ ký. BE tính trong `decorate()`. */
   next_approver_role: string | null;
+  /** Ghi chú của người tạo phiếu */
+  note?: string | null;
+  /** URL đã ký của ảnh người mượn đính kèm phiếu */
+  photos?: string[];
+  /** Thông tin yêu cầu gia hạn nếu có */
+  extension?: RequestExtensionInfo | null;
+  /** Danh sách sự cố được báo trong quá trình mượn */
+  incidents?: RequestIncidentItem[];
 }
 
 export async function fetchRequests(status?: string) {
@@ -255,4 +289,53 @@ export async function fetchBorrowHistoryLog(query: Record<string, string | numbe
 export async function cancelRequest(id: string) {
   const { data } = await apiClient.post(`/mems/requests/${id}/cancel`);
   return data as BorrowRequest;
+}
+
+/** Xoá (ẩn khỏi nhật ký) phiếu đã khép lại — chỉ Leader Team Media và Admin. BE xoá mềm. */
+export async function deleteRequest(id: string) {
+  const { data } = await apiClient.delete(`/mems/requests/${id}`);
+  return data as { id: string; request_code: string; deleted: true };
+}
+
+export async function reportIncident(
+  requestId: string,
+  payload: { assetId: string; kind: 'CONDITION_WORSENED' | 'MISSING_ACCESSORY'; description: string; photoIds?: string[] },
+) {
+  const { data } = await apiClient.post<RequestIncidentItem>(`/mems/requests/${requestId}/incidents`, payload);
+  return data;
+}
+
+export async function requestExtension(requestId: string, payload: { toTime: string; reason: string }) {
+  const { data } = await apiClient.post<RequestExtensionInfo>(`/mems/requests/${requestId}/extensions`, payload);
+  return data;
+}
+
+export async function decideExtension(
+  requestId: string,
+  payload: { decision: 'APPROVED' | 'REJECTED'; reason?: string },
+) {
+  const { data } = await apiClient.post<RequestExtensionInfo>(`/mems/requests/${requestId}/extensions/decision`, payload);
+  return data;
+}
+
+export interface ReturnAlertItem {
+  id: string;
+  request_code: string;
+  owner_id: string;
+  owner_name: string;
+  project: string;
+  place: string;
+  from_time: string;
+  to_time: string;
+  status: string;
+}
+
+export interface UpcomingReturnsAlerts {
+  overdue: Array<ReturnAlertItem & { overdue_minutes: number }>;
+  expiringSoon: Array<ReturnAlertItem & { remaining_minutes: number }>;
+}
+
+export async function fetchUpcomingReturnsAlerts() {
+  const { data } = await apiClient.get<UpcomingReturnsAlerts>('/mems/return-alerts');
+  return data;
 }

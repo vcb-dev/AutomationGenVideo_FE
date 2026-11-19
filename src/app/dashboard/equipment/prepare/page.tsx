@@ -9,7 +9,6 @@ import {
   BorrowRequest,
   assignSerials,
   fetchAssignableAssets,
-  fetchRequest,
   fetchRequests,
 } from '@/lib/equipment/request-api';
 import { ConditionDot } from '@/components/equipment/ConditionDot';
@@ -39,8 +38,7 @@ function PrepareInner() {
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
 
-  const loadRequest = useCallback(async (id: string) => {
-    const detail = await fetchRequest(id);
+  const loadRequest = useCallback(async (detail: BorrowRequest) => {
     setRequest(detail);
     setDone(false);
 
@@ -69,7 +67,7 @@ function PrepareInner() {
       .then(async (list) => {
         setCandidates(list);
         const target = (wanted && list.find((r) => r.id === wanted)) || list[0];
-        if (target) await loadRequest(target.id);
+        if (target) await loadRequest(target);
         else if (wanted) {
           // Phiếu được dẫn tới nhưng không nằm trong danh sách chờ gán: ai đó đã gán xong rồi.
           setError('Phiếu này không còn ở bước gán máy — có thể người khác đã chuẩn bị xong.');
@@ -126,6 +124,21 @@ function PrepareInner() {
 
       <StepBar current="prepare" />
 
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50/70 p-3.5 text-xs text-blue-900 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-200">
+        <div className="flex items-center gap-2">
+          <span className="text-base">⚡</span>
+          <span>
+            <strong>Luồng rút gọn:</strong> Bạn có thể gán số serial máy và thực hiện bàn giao ngay tại màn <strong>Bàn giao</strong> mà không bắt buộc phải hoàn tất bước chuẩn bị riêng biệt.
+          </span>
+        </div>
+        <Link
+          href={request ? `/dashboard/equipment/handover?request=${request.id}` : '/dashboard/equipment/handover'}
+          className="shrink-0 rounded-lg bg-blue-600 px-3 py-1.5 font-bold text-white shadow-xs hover:bg-blue-700 transition"
+        >
+          Sang Bàn giao ngay →
+        </Link>
+      </div>
+
       {loading ? (
         <p className="text-slate-500">Đang tải…</p>
       ) : candidates.length === 0 ? (
@@ -139,7 +152,7 @@ function PrepareInner() {
               {candidates.map((r) => (
                 <button
                   key={r.id}
-                  onClick={() => loadRequest(r.id)}
+                  onClick={() => loadRequest(r)}
                   className={cn(
                     'rounded-lg border px-3 py-2 text-sm font-semibold',
                     r.id === request?.id
@@ -147,7 +160,7 @@ function PrepareInner() {
                       : 'border-slate-300 text-slate-600 dark:border-white/[0.12] dark:text-slate-300',
                   )}
                 >
-                  {r.request_code}
+                  {r.request_code} · {r.owner_name || 'Người mượn'}
                 </button>
               ))}
             </div>
@@ -167,6 +180,15 @@ function PrepareInner() {
               <div className="p-5">
                 <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-5 dark:border-white/[0.06] dark:bg-white/[0.02]">
                   <dl className="grid grid-cols-[repeat(auto-fit,minmax(10rem,1fr))] gap-5">
+                    <div>
+                      <dt className={keyClass}>Người mượn</dt>
+                      <dd className={valueClass}>
+                        <span className="font-semibold">{request.owner_name || '—'}</span>
+                        {request.owner_email && (
+                          <span className="block text-[11px] text-slate-400">{request.owner_email}</span>
+                        )}
+                      </dd>
+                    </div>
                     <div>
                       <dt className={keyClass}>Bộ phận</dt>
                       <dd className={valueClass}>{request.department?.name ?? '—'}</dd>
@@ -289,7 +311,7 @@ function PrepareInner() {
               setDone(false);
               fetchRequests('APPROVED').then((list) => {
                 setCandidates(list);
-                if (list[0]) loadRequest(list[0].id);
+                if (list[0]) loadRequest(list[0]);
                 else setRequest(null);
               });
             }}

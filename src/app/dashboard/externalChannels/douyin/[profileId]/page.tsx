@@ -126,7 +126,7 @@ function VideoCard({ video, profile }: { video: any; profile?: DouyinProfile }) 
 
 export default function DouyinProfileDetailPage() {
   const { token, user } = useAuthStore();
-  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
+  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER, UserRole.MANAGER].includes(r)) ?? false;
   const router = useRouter();
   const queryClient = useQueryClient();
   const { profileId } = useParams<{ profileId: string }>();

@@ -13,6 +13,8 @@ import { searchOmsProducts, getOmsProductDetail } from '@/lib/api/task-auto'
 interface Props {
   open: boolean
   teamId: string
+  month: string
+  canSetTarget: boolean
   existingSkus: string[]
   onClose: () => void
   onSuccess: () => void
@@ -20,7 +22,7 @@ interface Props {
   initialBrandType?: BrandType
 }
 
-export function AddProductModal({ open, teamId, existingSkus, onClose, onSuccess, userId: _userId, initialBrandType = 'DO_DA' }: Props) {
+export function AddProductModal({ open, teamId, month, canSetTarget, existingSkus, onClose, onSuccess, userId: _userId, initialBrandType = 'DO_DA' }: Props) {
   const qc = useQueryClient()
   const [mode, setMode] = useState<'oms' | 'create'>('oms')
   const [search, setSearch] = useState('')
@@ -213,6 +215,8 @@ export function AddProductModal({ open, teamId, existingSkus, onClose, onSuccess
       <TeamProductFormModal
         open={showCreateModal}
         teamId={teamId}
+        month={month}
+        canSetTarget={canSetTarget}
         defaultBrandType={initialBrandType}
         omsPrefill={mode === 'oms' ? omsPrefill : null}
         onClose={() => { setShowCreateModal(false); setMode('oms'); setOmsPrefill(null) }}

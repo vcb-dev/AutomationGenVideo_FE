@@ -1,6 +1,7 @@
 import React, { ReactNode } from 'react';
 import type { Metadata, Viewport } from 'next';
-import { Roboto } from 'next/font/google';
+// Roboto tự host: next/font/google làm build Vercel sập khi Google trả link font không đuôi (vercel/next.js#99114).
+import './fonts/roboto.css';
 import './globals.css';
 import { Toaster } from 'react-hot-toast';
 import AuthHydration from '@/components/AuthHydration';
@@ -9,13 +10,6 @@ import QueryProvider from '@/components/QueryProvider';
 import InstallPwaPrompt from '@/components/InstallPwaPrompt';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { LanguageProvider } from '@/contexts/SocialLanguageContext';
-
-const roboto = Roboto({
-  subsets: ['latin', 'vietnamese'],
-  weight: ['400', '500', '700', '900'],
-  variable: '--font-roboto',
-  display: 'swap',
-});
 
 export const metadata: Metadata = {
   title: 'Video Production System',
@@ -48,7 +42,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="vi">
-      <body className={`${roboto.variable} font-sans antialiased`}>
+      <body className="font-sans antialiased">
         <AuthHydration />
         <ChunkErrorReload />
         <ThemeProvider>

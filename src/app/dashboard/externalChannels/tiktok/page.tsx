@@ -30,7 +30,7 @@ const PAGE_SIZE_PROFILES = 12;
 
 export default function TiktokExternalPage() {
   const { token, user } = useAuthStore();
-  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
+  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER, UserRole.MANAGER].includes(r)) ?? false;
   const queryClient = useQueryClient();
   const router = useRouter();
   const { addNotification, updateNotification } = useScrapingStore();

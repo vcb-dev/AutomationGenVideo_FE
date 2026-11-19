@@ -95,6 +95,7 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   { prefix: '/dashboard/tools/video-downloader', permission: 'tools:video:download' },
   { prefix: '/dashboard/tools/lucky-spin', permission: 'tools:lucky_spin:play' },
   { prefix: '/dashboard/tien-ich/id-photo', permission: 'tools:id_photo:create' },
+  { prefix: '/dashboard/tien-ich/product-image', permission: 'tools:product_image:use' },
 
   // ─── Hướng dẫn sử dụng ──────────────────────────────────────────────────────
   // Mỗi bài hướng dẫn đi theo phân hệ nó mô tả: không có quyền dùng phân hệ thì đọc hướng dẫn

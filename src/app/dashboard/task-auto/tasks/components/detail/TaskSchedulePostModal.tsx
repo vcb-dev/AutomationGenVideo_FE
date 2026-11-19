@@ -7,7 +7,7 @@ import {
   Search, ExternalLink, Plus, X, AtSign, AlertTriangle, ChevronDown, Film,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { cn, driveImageUrl } from '@/lib/utils'
+import { cn, videoThumbnailUrl } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { socialApi, SocialPlatform, SocialPost, SocialAccount, getPostUrl } from '@/lib/api/social'
 import { useSocialAccounts } from '@/hooks/useSocialAccounts'
@@ -284,7 +284,7 @@ export function TaskSchedulePostModal({ taskId, resultUrl, defaultMessage, curre
     }
   }
 
-  const thumb = driveImageUrl(resultUrl, 320)
+  const thumb = videoThumbnailUrl(resultUrl, 320)
 
   return (
     <DarkModal open onClose={onClose} title="Lên lịch đăng bài" size="xl">

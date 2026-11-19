@@ -31,7 +31,7 @@ const PAGE_SIZE_PROFILES = 12;
 
 export default function KuaishouExternalPage() {
   const { token, user } = useAuthStore();
-  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
+  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER, UserRole.MANAGER].includes(r)) ?? false;
   const queryClient = useQueryClient();
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; name: string; videoCount: number } | null>(null);
 

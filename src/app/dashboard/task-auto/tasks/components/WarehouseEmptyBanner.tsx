@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { PackageX, Video, ShoppingBag, X } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { ChevronRight, PackageX, X } from 'lucide-react'
 import { getTaskNotifications } from '@/lib/api/task-auto'
+import type { EmptyWarehouseNoticeMeta, Notification } from '@/types/task-auto'
 
 const NOTICE_TYPE = 'AUTO_ASSIGN_EMPTY_WAREHOUSE'
 const DISMISSED_KEY = 'task_auto_warehouse_notice_dismissed'
+
+export type WarehouseNotice = Notification<EmptyWarehouseNoticeMeta> & { meta: EmptyWarehouseNoticeMeta }
 
 function isToday(iso: string) {
   const d = new Date(iso)
@@ -17,16 +19,16 @@ function isToday(iso: string) {
     && d.getDate() === now.getDate()
 }
 
-interface Props {
-  /** Chỉ fetch/hiện khi đang ở view cá nhân — số liệu là của riêng editor đang đăng nhập */
-  enabled: boolean
-}
-
-export function WarehouseEmptyBanner({ enabled }: Props) {
+/** Thông báo "kho sản phẩm team trống" hôm nay của editor đang đăng nhập (auto-assign A4 không tạo được task). */
+export function useWarehouseEmptyNotice(enabled: boolean) {
   const [dismissedId, setDismissedId] = useState<string | null>(null)
 
   useEffect(() => {
-    setDismissedId(typeof window !== 'undefined' ? localStorage.getItem(DISMISSED_KEY) : null)
+    try {
+      setDismissedId(localStorage.getItem(DISMISSED_KEY))
+    } catch {
+      // localStorage bị chặn (chế độ riêng tư...) — vẫn hiện cảnh báo, chỉ không nhớ được lần ẩn
+    }
   }, [])
 
   const { data } = useQuery({
@@ -36,81 +38,66 @@ export function WarehouseEmptyBanner({ enabled }: Props) {
     refetchOnWindowFocus: true,
   })
 
-  const notice = data?.data?.[0]
-  if (!notice || !notice.meta || !isToday(notice.created_at) || notice.id === dismissedId) return null
-
-  const { videosNeededToday, productKpi, contentLines } = notice.meta
+  const latest = data?.data?.[0]
+  const notice: WarehouseNotice | null =
+    enabled && latest?.meta && isToday(latest.created_at) && latest.id !== dismissedId
+      ? (latest as WarehouseNotice)
+      : null
 
   function dismiss() {
-    localStorage.setItem(DISMISSED_KEY, notice!.id)
-    setDismissedId(notice!.id)
+    if (!notice) return
+    try {
+      localStorage.setItem(DISMISSED_KEY, notice.id)
+    } catch {
+      // như trên
+    }
+    setDismissedId(notice.id)
   }
 
+  return { notice, dismiss }
+}
+
+/** Cảnh báo kho trống gọn 1 dòng, đặt ở góc phải đầu khối Kế hoạch ngày — không chiếm 1 ô trong
+ * lưới tuyến (lưới đã đủ 4 ô A1/A2/A3/A5). Bấm "Tạo nhiệm vụ" để tự tạo task bù cho tuyến bị trống kho. */
+export function WarehouseNoticeAlert({
+  notice, onCreate, onDismiss,
+}: {
+  notice: WarehouseNotice
+  onCreate: () => void
+  onDismiss: () => void
+}) {
+  const { videosNeededToday, productKpi, contentLines } = notice.meta
+  const lines = contentLines.map(l => l.name).join(', ')
+
   return (
-    <div className="relative bg-amber-50 border border-amber-200 rounded-2xl px-6 py-5 space-y-4">
+    <div
+      role="status"
+      title={notice.title}
+      className="flex items-center gap-2.5 rounded-xl border border-amber-200 bg-amber-50 pl-3 pr-1 py-1 max-w-full"
+    >
+      <PackageX className="w-4 h-4 text-amber-600 shrink-0" aria-hidden="true" />
+      <p className="text-xs text-amber-900 min-w-0">
+        {lines && <span className="font-bold">{lines}: </span>}
+        kho SP team trống — tự tạo <span className="font-bold tabular-nums">{videosNeededToday}</span> video
+        {productKpi ? <> · thiếu <span className="tabular-nums">{productKpi.remaining}</span> SP KPI tháng</> : null}
+      </p>
       <button
-        onClick={dismiss}
-        className="absolute top-4 right-4 p-1 rounded-lg hover:bg-amber-100 text-amber-500"
+        type="button"
+        onClick={onCreate}
+        className="shrink-0 inline-flex items-center gap-0.5 h-8 pl-2.5 pr-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold whitespace-nowrap transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-1"
       >
-        <X className="w-4 h-4" />
+        Tạo nhiệm vụ
+        <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
       </button>
-
-      <div className="flex items-start gap-3">
-        <div className="w-9 h-9 rounded-xl bg-amber-500 flex items-center justify-center shrink-0 shadow-sm">
-          <PackageX className="w-4.5 h-4.5 text-white" />
-        </div>
-        <div>
-          <h3 className="font-bold text-amber-900 text-sm">{notice.title}</h3>
-          <p className="text-xs text-amber-700 mt-0.5">
-            Kho tháng chưa có content/sản phẩm để bắt cặp tạo task tự động — dưới đây là số liệu bạn
-            cần hoàn thành hôm nay theo KPI, hãy tạo task thủ công hoặc bổ sung kho.
-          </p>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-2.5 pl-12">
-        <div className="flex items-center gap-2.5 px-4 py-2 rounded-full border border-amber-300 bg-white text-sm font-semibold text-amber-800">
-          <Video className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-          <span className="font-black text-base leading-none">{videosNeededToday}</span>
-          <span className="font-medium opacity-80">video cần làm hôm nay</span>
-        </div>
-
-        {contentLines.map(line => (
-          <div
-            key={line.id}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-full border border-amber-200 bg-white/70 text-sm font-medium text-amber-700"
-          >
-            {line.name}
-            <span className="font-black text-amber-900">{line.count}</span>
-          </div>
-        ))}
-      </div>
-
-      {productKpi && (
-        <div className="pl-12">
-          <div className="flex items-center gap-2 text-sm font-semibold text-amber-800">
-            <ShoppingBag className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-            Còn thiếu {productKpi.remaining} sản phẩm cần đẩy theo KPI tháng
-            <span className="text-amber-500 font-normal">
-              (đã đẩy {productKpi.pushedThisMonth}/{productKpi.planned})
-            </span>
-          </div>
-          {productKpi.pendingProducts && productKpi.pendingProducts.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {productKpi.pendingProducts.map(p => (
-                <span
-                  key={p.id}
-                  className={cn(
-                    'px-2.5 py-1 rounded-lg bg-white border border-amber-200 text-xs font-medium text-amber-700',
-                  )}
-                >
-                  {p.name}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      <button
+        type="button"
+        onClick={onDismiss}
+        aria-label="Ẩn cảnh báo kho trống hôm nay"
+        title="Ẩn cảnh báo hôm nay"
+        className="shrink-0 p-1.5 rounded-md text-amber-500 hover:bg-amber-100 hover:text-amber-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+      >
+        <X className="w-3.5 h-3.5" aria-hidden="true" />
+      </button>
     </div>
   )
 }

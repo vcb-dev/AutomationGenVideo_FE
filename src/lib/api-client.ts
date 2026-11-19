@@ -8,7 +8,12 @@ interface RetryConfig extends InternalAxiosRequestConfig {
   _retry429?: number;
   /** Đã thử làm mới phiên cho request này chưa — chặn thử đi thử lại vô hạn. */
   _retriedAfterRefresh?: boolean;
+  /** Request chạy nền: lỗi không được làm phiền người dùng — không chờ thử lại 429, không đẩy về trang đăng nhập. */
+  background?: boolean;
 }
+
+/** Cấu hình cho request chạy nền (xem RetryConfig.background). */
+export const BACKGROUND_REQUEST = { background: true } as Record<string, unknown>;
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
 const MUTATING = new Set(['post', 'put', 'patch', 'delete']);
@@ -46,13 +51,24 @@ export const sessionRefresher = createSessionRefresher(async () => {
   return token;
 });
 
+/**
+ * Trang đang mở — BE ghi chi phí TikHub/Gemini của lượt gọi vào đúng trang của menu Khám phá Video
+ * (vd tách Kênh nội bộ với Khám phá kênh dù gọi cùng một API). Xem BE common/api-usage.
+ */
+export const CLIENT_PAGE_HEADER = 'X-Client-Page';
+
+function clientPageHeader(): Record<string, string> {
+  return typeof window === 'undefined' ? {} : { [CLIENT_PAGE_HEADER]: window.location.pathname };
+}
+
 // Double-submit CSRF: cookie vcbi_csrf (không HttpOnly) gửi lại qua x-csrf-token.
 // CsrfGuard trên POST /auth/logout và /auth/refresh từ chối nếu thiếu header này.
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    if (typeof window === 'undefined') return config;
+    if (typeof window === 'undefined' || !config.headers) return config;
+    config.headers[CLIENT_PAGE_HEADER] = window.location.pathname;
     const method = (config.method || 'get').toLowerCase();
-    if (!MUTATING.has(method) || !config.headers) return config;
+    if (!MUTATING.has(method)) return config;
     const headers = csrfHeader(document.cookie);
     for (const [key, value] of Object.entries(headers)) {
       config.headers[key] = value;
@@ -69,7 +85,7 @@ apiClient.interceptors.response.use(
     const config = error.config as RetryConfig | undefined;
 
     // 429 Too Many Requests: wait then retry (max 3 times)
-    if (error.response?.status === 429 && config) {
+    if (error.response?.status === 429 && config && !config.background) {
       config._retry429 = (config._retry429 ?? 0) + 1;
       if (config._retry429 <= 3) {
         const retryAfterSec = parseInt(
@@ -98,7 +114,7 @@ apiClient.interceptors.response.use(
 
     if (error.response?.status === 401) {
       if (typeof window !== 'undefined') {
-        if (!config?.url?.includes('/auth/login')) {
+        if (!config?.url?.includes('/auth/login') && !config?.background) {
           window.location.href = '/login';
         }
       }
@@ -139,7 +155,7 @@ export async function fetchWithAuth(input: string, init: RequestInit = {}): Prom
   const fetchInit: RequestInit = {
     ...init,
     credentials: init.credentials || 'include',
-    headers: { ...csrf, ...(init.headers as Record<string, string> | undefined) },
+    headers: { ...clientPageHeader(), ...csrf, ...(init.headers as Record<string, string> | undefined) },
   };
 
   const response = await fetch(input, fetchInit);

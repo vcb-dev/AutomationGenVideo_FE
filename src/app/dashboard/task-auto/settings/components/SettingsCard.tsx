@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Settings, Zap, Clock, Globe, Calendar, Power, Loader2, Timer } from 'lucide-react'
+import { Settings, Zap, Clock, Globe, Power, Loader2, CalendarCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ConfirmDialog } from '@/components/task-auto'
 import { formatDateTime } from '@/components/task-auto/helpers'
@@ -14,12 +14,12 @@ import {
 } from '@/lib/api/task-auto'
 import { AutoAssignSetting } from '@/types/task-auto'
 
-function ToggleSwitch({ checked, onChange, disabled }: {
-  checked: boolean; onChange: (v: boolean) => void; disabled?: boolean
+export function ToggleSwitch({ checked, onChange, disabled, label }: {
+  checked: boolean; onChange: (v: boolean) => void; disabled?: boolean; label?: string
 }) {
   return (
     <label className={cn('relative inline-flex items-center cursor-pointer', disabled && 'opacity-50 cursor-not-allowed')}>
-      <input type="checkbox" checked={checked} onChange={e => !disabled && onChange(e.target.checked)} className="sr-only peer" disabled={disabled} />
+      <input type="checkbox" role="switch" aria-label={label} checked={checked} onChange={e => !disabled && onChange(e.target.checked)} className="sr-only peer" disabled={disabled} />
       <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-indigo-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5" />
     </label>
   )
@@ -35,16 +35,16 @@ export function SettingsCard({ canEdit }: { canEdit: boolean }) {
   })
 
   const [form, setForm] = useState<Partial<AutoAssignSetting>>({
-    schedule_time: '08:00', timezone: 'Asia/Ho_Chi_Minh', weekend_enabled: false, is_active: false, default_cooldown_days: 5,
+    schedule_time: '08:00', timezone: 'Asia/Ho_Chi_Minh', is_active: false,
+    daily_plan_enabled: true,
   })
 
   useEffect(() => {
     if (settings) setForm({
       schedule_time: settings.schedule_time,
       timezone: settings.timezone,
-      weekend_enabled: settings.weekend_enabled,
       is_active: settings.is_active,
-      default_cooldown_days: settings.default_cooldown_days,
+      daily_plan_enabled: settings.daily_plan_enabled,
     })
   }, [settings])
 
@@ -62,7 +62,7 @@ export function SettingsCard({ canEdit }: { canEdit: boolean }) {
       if (res.assigned > 0) {
         toast.success(`Đã phân công ${res.assigned} task thành công`)
       } else {
-        toast('Không có task nào được tạo (đủ KPI hoặc không đủ content/sản phẩm)', { icon: 'ℹ️' })
+        toast('Không có task A4 nào được tạo (hệ thống đang tắt, thành viên tắt chia tự động/nghỉ ngày mai, đã đủ KPI A4 hoặc kho team không có sản phẩm GMV đang bật với điểm ưu tiên lớn hơn 0)', { icon: 'ℹ️' })
       }
     },
     onError: () => { toast.error('Không thể kích hoạt phân công — hãy kiểm tra BE server'); setShowConfirm(false) },
@@ -99,11 +99,11 @@ export function SettingsCard({ canEdit }: { canEdit: boolean }) {
                 <p className="text-sm text-slate-500 mt-0.5">Bật/tắt toàn bộ tính năng tự động phân công</p>
               </div>
             </div>
-            <ToggleSwitch checked={form.is_active ?? false} onChange={v => setForm(f => ({ ...f, is_active: v }))} disabled={!canEdit} />
+            <ToggleSwitch checked={form.is_active ?? false} onChange={v => setForm(f => ({ ...f, is_active: v }))} disabled={!canEdit} label="Kích hoạt hệ thống" />
           </div>
 
           {/* Settings fields */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div>
               <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-1.5">
                 <Clock className="w-4 h-4 text-slate-400" /> Thời gian chạy (HH:MM)
@@ -118,28 +118,18 @@ export function SettingsCard({ canEdit }: { canEdit: boolean }) {
               <input type="text" value={form.timezone ?? 'Asia/Ho_Chi_Minh'} onChange={e => setForm(f => ({ ...f, timezone: e.target.value }))} disabled={!canEdit} placeholder="Asia/Ho_Chi_Minh"
                 className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:bg-gray-50 transition-colors" />
             </div>
-            <div>
-              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-1.5">
-                <Timer className="w-4 h-4 text-slate-400" /> Cooldown mặc định (ngày)
-              </label>
-              <input type="number" min={0} value={form.default_cooldown_days ?? 5}
-                onChange={e => setForm(f => ({ ...f, default_cooldown_days: e.target.value === '' ? 0 : Number(e.target.value) }))}
-                disabled={!canEdit}
-                className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:bg-gray-50 transition-colors" />
-              <p className="text-xs text-slate-400 mt-1">Áp dụng cho sản phẩm chưa tự set cooldown riêng</p>
-            </div>
           </div>
 
-          {/* Weekend toggle */}
+          {/* Kế hoạch ngày các tuyến không tự tạo task */}
           <div className="flex items-center justify-between py-1">
             <div className="flex items-center gap-3">
-              <Calendar className="w-4 h-4 text-slate-400" />
+              <CalendarCheck className="w-4 h-4 text-slate-400" aria-hidden="true" />
               <div>
-                <p className="text-sm font-semibold text-slate-800">Chạy vào cuối tuần</p>
-                <p className="text-sm text-slate-500">Bật để phân công tự động vào Thứ 7 và Chủ nhật (KPI các ngày đều như nhau).</p>
+                <p className="text-sm font-semibold text-slate-800">Kế hoạch ngày {(settings?.daily_plan_line_names ?? ['A1', 'A2', 'A3', 'A5']).join(', ')}</p>
+                <p className="text-sm text-slate-500">Cùng lượt chạy: chia chỉ tiêu theo KPI tuyến kèm gợi ý content kho / video win, không tạo task — editor tạo nhanh từ gợi ý ở trang Nhiệm vụ.</p>
               </div>
             </div>
-            <ToggleSwitch checked={form.weekend_enabled ?? false} onChange={v => setForm(f => ({ ...f, weekend_enabled: v }))} disabled={!canEdit} />
+            <ToggleSwitch checked={form.daily_plan_enabled ?? true} onChange={v => setForm(f => ({ ...f, daily_plan_enabled: v }))} disabled={!canEdit} label="Kế hoạch ngày" />
           </div>
         </div>
 

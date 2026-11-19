@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { Play, CheckCircle2, XCircle, Loader2, Info } from 'lucide-react'
-import { driveImageUrl } from '@/lib/utils'
+import { videoThumbnailUrl } from '@/lib/utils'
 import { TaskStatusBadge } from '@/components/task-auto/StatusBadge'
 import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
 import { EmptyState } from '@/components/task-auto/EmptyState'
@@ -24,6 +24,8 @@ interface Props {
   // Lọc người nộp giờ dùng chung dropdown "Người làm" ở thanh lọc chính (TaskFilters) —
   // trước đây tab này có dropdown riêng, trùng chức năng và gây hiểu nhầm bộ lọc chính không tác dụng.
   assigneeId?: string
+  contentLineId?: string
+  productLineId?: string
   page: number
   onPageChange: (page: number) => void
   onViewTask: (id: string) => void
@@ -48,10 +50,10 @@ function SkeletonCards() {
   )
 }
 
-// Ảnh đại diện video: thumbnail Drive thật → ảnh sản phẩm liên kết → icon placeholder.
-// Google Drive thumbnail có thể lỗi nếu file chưa share công khai nên cần fallback qua onError.
+// Ảnh đại diện video: thumbnail video thật (Drive/R2) → ảnh sản phẩm liên kết → icon placeholder.
+// Thumbnail có thể lỗi (Drive chưa share công khai, R2 chưa kịp tạo ảnh) nên cần fallback qua onError.
 function VideoThumbnail({ resultUrl, productImage, alt }: { resultUrl: string | null; productImage: string | null; alt: string }) {
-  const candidates = [driveImageUrl(resultUrl), productImage].filter((u): u is string => !!u)
+  const candidates = [videoThumbnailUrl(resultUrl), productImage].filter((u): u is string => !!u)
   const [idx, setIdx] = useState(0)
   const src = candidates[idx]
 
@@ -72,13 +74,13 @@ function VideoThumbnail({ resultUrl, productImage, alt }: { resultUrl: string | 
   )
 }
 
-export function SubmittedVideosGrid({ teamId, search, deadlineFrom, deadlineTo, assigneeId, page, onPageChange, onViewTask, canApproveReject }: Props) {
+export function SubmittedVideosGrid({ teamId, search, deadlineFrom, deadlineTo, assigneeId, contentLineId, productLineId, page, onPageChange, onViewTask, canApproveReject }: Props) {
   const qc = useQueryClient()
   const [rejectingTask, setRejectingTask] = useState<Task | null>(null)
   const [previewIndex, setPreviewIndex] = useState<number | null>(null)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'tasks', 'submitted', { teamId, search, deadlineFrom, deadlineTo, assigneeId, page }],
+    queryKey: ['task-auto', 'tasks', 'submitted', { teamId, search, deadlineFrom, deadlineTo, assigneeId, contentLineId, productLineId, page }],
     queryFn: () => getTasks({
       status: 'SUBMITTED',
       team_id: teamId,
@@ -86,6 +88,8 @@ export function SubmittedVideosGrid({ teamId, search, deadlineFrom, deadlineTo, 
       deadline_from: deadlineFrom || undefined,
       deadline_to: deadlineTo || undefined,
       assignee_id: assigneeId,
+      content_line_id: contentLineId,
+      product_line_id: productLineId,
       page,
       limit: LIMIT,
     }),

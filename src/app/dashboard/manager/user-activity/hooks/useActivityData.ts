@@ -33,6 +33,7 @@ interface UseActivityDataReturn {
     rankings: any;
     teamContributions: any[];
     groupContributions: any;
+    teamRegions: Record<string, "global" | "vn">;
     reportOutstandings: any[];
     kpiMeta: KpiMeta | null;
     loading: boolean;
@@ -310,6 +311,7 @@ export function useActivityData({
     const rankings = useMemo(() => activityQuery.data?.rankings || null, [activityQuery.data?.rankings]);
     const teamContributions = useMemo(() => activityQuery.data?.teamContributions || [], [activityQuery.data?.teamContributions]);
     const groupContributions = useMemo(() => activityQuery.data?.groupContributions || null, [activityQuery.data?.groupContributions]);
+    const teamRegions = useMemo(() => activityQuery.data?.teamRegions || {}, [activityQuery.data?.teamRegions]);
     const kpiMeta = useMemo(() => activityQuery.data?.meta || null, [activityQuery.data?.meta]);
     const userTeam = useMemo(() => activityQuery.data?.userTeam || user?.team || null, [activityQuery.data?.userTeam, user?.team]);
 
@@ -371,6 +373,7 @@ export function useActivityData({
         rankings,
         teamContributions,
         groupContributions,
+        teamRegions,
         reportOutstandings,
         kpiMeta,
         loading: activityQuery.isLoading,

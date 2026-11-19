@@ -71,6 +71,17 @@ export function findExistingModel(
   );
 }
 
+export function generateSerialNumber(prefix: string, quantity: number = 1): string {
+  const cleanPrefix = (prefix || 'EQP').toUpperCase();
+  const randPart = Math.random().toString(36).slice(2, 6).toUpperCase();
+  const tsPart = Date.now().toString().slice(-4);
+  const baseSerial = `SN-${cleanPrefix}-${tsPart}${randPart}`;
+  if (quantity <= 1) {
+    return baseSerial;
+  }
+  return Array.from({ length: quantity }, (_, i) => `${baseSerial}-${String(i + 1).padStart(2, '0')}`).join('\n');
+}
+
 interface AddAssetDialogProps {
   onClose: () => void;
   onCreated: () => void;
@@ -216,8 +227,20 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
       .filter(Boolean);
   }, [serialNumber]);
 
+  const activeCategoryCode = useMemo(() => {
+    if (isCreatingCategory) {
+      return suggestCode(newCatName) || 'EQP';
+    }
+    const cat = categories.find((c) => c.id === selectedCategoryId);
+    return cat?.code || 'EQP';
+  }, [isCreatingCategory, newCatName, categories, selectedCategoryId]);
+
+  const handleAutoGenerateSerial = () => {
+    const generated = generateSerialNumber(activeCategoryCode, quantity);
+    setSerialNumber(generated);
+  };
+
   const canSubmit =
-    (quantity === 1 ? serialNumber.trim() !== '' : (serialList.length > 0 || serialNumber.trim() !== '')) &&
     !saving &&
     (isCreatingCategory ? newCatName.trim() !== '' : selectedCategoryId !== '') &&
     (isCreatingModel ? newModelName.trim() !== '' : modelId !== '') &&
@@ -730,46 +753,59 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
               <div className="sm:col-span-2">
                 {quantity === 1 ? (
                   <label className="block">
-                    <span className={labelClass}>
-                      Số serial máy <em className="not-italic text-red-600">*</em>
+                    <div className="flex items-center justify-between">
+                      <span className={labelClass}>
+                        Số serial máy <span className="text-xs font-normal text-slate-400">(Tùy chọn)</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleAutoGenerateSerial}
+                        className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 cursor-pointer"
+                      >
+                        <span>⚡ Tự tạo mã serial</span>
+                      </button>
+                    </div>
+                    <span className={hintClass}>
+                      Số serial vật lý in trên thân máy. Bấm &quot;Tự tạo mã serial&quot; nếu thiết bị không có serial.
                     </span>
-                    <span className={hintClass}>Số serial vật lý in trên thân máy.</span>
                     <input
                       className={cn(inputClass, 'mt-2 font-mono font-medium')}
                       value={serialNumber}
                       onChange={(e) => setSerialNumber(e.target.value)}
-                      placeholder="3821992-F"
+                      placeholder="Ví dụ: 3821992-F (hoặc bấm Tự tạo mã serial)"
                     />
                   </label>
                 ) : (
                   <label className="block">
                     <div className="flex items-center justify-between">
                       <span className={labelClass}>
-                        Danh sách serial ({quantity} chiếc) <em className="not-italic text-red-600">*</em>
+                        Danh sách serial ({quantity} chiếc) <span className="text-xs font-normal text-slate-400">(Tùy chọn)</span>
                       </span>
-                      {serialList.length === quantity ? (
-                        <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                          ✓ Đủ {quantity}/{quantity} serial
-                        </span>
-                      ) : serialList.length === 1 ? (
-                        <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
-                          Tự đánh số đuôi -01, -02...
-                        </span>
-                      ) : (
-                        <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
-                          Đã nhập {serialList.length}/{quantity} serial
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {serialList.length === quantity ? (
+                          <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                            ✓ Đủ {quantity}/{quantity}
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handleAutoGenerateSerial}
+                            className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 cursor-pointer"
+                          >
+                            <span>⚡ Tự tạo {quantity} mã</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <span className={hintClass}>
-                      Gõ/dán mỗi serial 1 dòng, hoặc 1 serial mẫu để tự đánh số đuôi.
+                      Gõ/dán mỗi serial 1 dòng, hoặc bấm &quot;Tự tạo mã&quot; để sinh tự động.
                     </span>
                     <textarea
                       rows={3}
                       className={cn(inputClass, 'mt-2 font-mono text-xs leading-relaxed resize-none')}
                       value={serialNumber}
                       onChange={(e) => setSerialNumber(e.target.value)}
-                      placeholder={`Ví dụ:\nSN1001\nSN1002\n(Hoặc gõ "A7IV" để tự sinh A7IV-01, A7IV-02)`}
+                      placeholder={`Ví dụ:\nSN1001\nSN1002\n(Hoặc bấm Tự tạo mã ở góc trên)`}
                     />
                   </label>
                 )}

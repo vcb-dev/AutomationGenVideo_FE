@@ -21,20 +21,17 @@ import {
     TrendingUp,
     CalendarDays,
     Bookmark,
-    Languages,
     BookOpen,
     Zap,
     Radio,
-    FolderOpen,
     AudioLines,
-    Wand2,
     DownloadCloud,
     Sparkles,
     Boxes,
-    PackageCheck,
     Truck,
     Undo2,
     ImagePlus,
+    Images,
 } from "lucide-react";
 import { useSocialLang } from "@/contexts/SocialLanguageContext";
 import { NavMenu } from "./types";
@@ -330,18 +327,20 @@ export function useNavMenus(
                             },
                         ],
                     },
-                    {
-                        section: n.secDiscover,
-                        color: "slate" as const,
-                        items: [
-                            {
-                                label: n.searchHub,
-                                href: "/dashboard/search-video",
-                                icon: Search,
-                                description: n.searchHubDesc,
-                            },
-                        ],
-                    },
+                    // Ẩn mục Tìm kiếm Video (Hub) với mọi vai trò theo yêu cầu. Section Khám phá
+                    // chỉ có mục này nên ẩn cả section, tránh tiêu đề trơ trọi không có item:
+                    // {
+                    //     section: n.secDiscover,
+                    //     color: "slate" as const,
+                    //     items: [
+                    //         {
+                    //             label: n.searchHub,
+                    //             href: "/dashboard/search-video",
+                    //             icon: Search,
+                    //             description: n.searchHubDesc,
+                    //         },
+                    //     ],
+                    // },
                     {
                         section: n.secCollections,
                         color: "violet" as const,
@@ -352,12 +351,13 @@ export function useNavMenus(
                                 icon: Bookmark,
                                 description: n.collectionsDesc,
                             },
-                            {
-                                label: n.translateContent,
-                                href: "/dashboard/content/generate?mode=translate-only",
-                                icon: Languages,
-                                description: n.translateContentDesc,
-                            },
+                            // Ẩn mục Dịch Content với mọi vai trò theo yêu cầu:
+                            // {
+                            //     label: n.translateContent,
+                            //     href: "/dashboard/content/generate?mode=translate-only",
+                            //     icon: Languages,
+                            //     description: n.translateContentDesc,
+                            // },
                         ],
                     },
                 ],
@@ -393,13 +393,13 @@ export function useNavMenus(
                                 label: n.teams,
                                 href: "/dashboard/task-auto/teams",
                                 icon: Users,
-                                description: n.teamsDesc,
+                                description: isManagerOrAdmin ? n.teamsManageDesc : n.teamsDesc,
                             },
                             {
-                                label: n.catalog,
-                                href: "/dashboard/task-auto/catalog",
-                                icon: FolderOpen,
-                                description: n.catalogDesc,
+                                label: n.sourceCatalog,
+                                href: "/dashboard/task-auto/catalog/sources",
+                                icon: Radio,
+                                description: n.sourceCatalogDesc,
                             },
                         ],
                     },
@@ -408,18 +408,12 @@ export function useNavMenus(
                         color: "violet",
                         items: [
                             {
-                                label: n.myCatalog,
-                                href: "/dashboard/task-auto/my-catalog",
-                                icon: User,
-                                description: n.myCatalogDesc,
-                            },
-                            {
                                 label: n.kpi,
                                 href: "/dashboard/task-auto/kpi",
                                 icon: BarChart3,
                                 description: n.kpiDesc,
                             },
-                            ...(isManagerOrAdmin ? [{
+                            ...(isManagerOrAdmin || isLeader ? [{
                                 label: n.taskSettings,
                                 href: "/dashboard/task-auto/settings",
                                 icon: Zap,
@@ -453,16 +447,6 @@ export function useNavMenus(
                                 icon: Boxes,
                                 description: n.equipmentStockDesc,
                             },
-                            // Nhật ký lộ thói quen mượn của từng người nên chỉ quản lý kho thấy.
-                            // BE cũng chặn bằng @Roles — đây chỉ là ẩn đầu mục cho đỡ vướng mắt.
-                            ...(isMediaLeaderOrAdmin
-                                ? [{
-                                    label: n.equipmentBorrowLog,
-                                    href: "/dashboard/equipment/borrow-history",
-                                    icon: History,
-                                    description: n.equipmentBorrowLogDesc,
-                                }]
-                                : []),
                         ],
                     },
                     {
@@ -474,6 +458,14 @@ export function useNavMenus(
                                 href: "/dashboard/equipment/new-request",
                                 icon: ClipboardList,
                                 description: n.equipmentNewRequestDesc,
+                            },
+                            {
+                                label: isMediaLeaderOrAdmin ? n.equipmentBorrowLog : "Lịch sử mượn & Phiếu của tôi",
+                                href: "/dashboard/equipment/borrow-history",
+                                icon: History,
+                                description: isMediaLeaderOrAdmin
+                                    ? n.equipmentBorrowLogDesc
+                                    : "Theo dõi tiến độ duyệt, lịch sử tạo phiếu và phiếu đang mượn của bạn",
                             },
                         ],
                     },
@@ -487,12 +479,6 @@ export function useNavMenus(
                                     href: "/dashboard/equipment/approvals",
                                     icon: CheckSquare,
                                     description: n.equipmentApprovalsDesc,
-                                },
-                                {
-                                    label: n.equipmentPrepare,
-                                    href: "/dashboard/equipment/prepare",
-                                    icon: PackageCheck,
-                                    description: n.equipmentPrepareDesc,
                                 },
                                 {
                                     label: n.equipmentHandover,
@@ -529,6 +515,7 @@ export function useNavMenus(
                     "/dashboard/tools/video-downloader",
                     "/dashboard/tools/lucky-spin",
                     "/dashboard/tien-ich/id-photo",
+                    "/dashboard/tien-ich/product-image",
                 ] as string[],
                 sections: [
                     {
@@ -553,11 +540,21 @@ export function useNavMenus(
                         section: n.secAiContent,
                         color: "indigo" as const,
                         items: [
+                            // Ẩn mục Chuyển đổi content với mọi vai trò theo yêu cầu (PR #173). Section
+                            // Nội dung AI vẫn giữ vì còn mục Tạo ảnh sản phẩm:
+                            // {
+                            //     label: n.contentTransform,
+                            //     href: "/dashboard/ai/content-transform",
+                            //     icon: Wand2,
+                            //     description: n.contentTransformDesc,
+                            // },
+                            // Mọi vai trò đều có quyền tools:product_image:use mặc định (người dùng
+                            // chốt 2026-09-29) — BE chỉ gắn JwtAuthGuard, không @Roles.
                             {
-                                label: n.contentTransform,
-                                href: "/dashboard/ai/content-transform",
-                                icon: Wand2,
-                                description: n.contentTransformDesc,
+                                label: n.productImage,
+                                href: "/dashboard/tien-ich/product-image",
+                                icon: Images,
+                                description: n.productImageDesc,
                             },
                         ],
                     },

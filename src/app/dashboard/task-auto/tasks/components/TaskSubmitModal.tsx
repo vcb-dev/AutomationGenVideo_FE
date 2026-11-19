@@ -1,15 +1,24 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { Film, CheckCircle2, Loader2, Link, ChevronDown, Upload, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { DarkInput } from '@/components/task-auto/DarkInput'
+import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
 import { apiClient } from '@/lib/api-client'
 import { Task } from '@/types/task-auto'
-import { submitTask, updateTask } from '@/lib/api/task-auto'
+import { abortTaskVideoUpload, deleteTaskPendingVideo, submitTask, updateTask } from '@/lib/api/task-auto'
+import {
+  PartUploadError,
+  createDirectPartUploader,
+  finishWithRetry,
+  uploadErrorMessage,
+  uploadInParts,
+  type PartUploader,
+} from '@/lib/storage/chunked-upload'
 
 interface Props {
   task: Task
@@ -18,7 +27,8 @@ interface Props {
   onSuccess: () => void
 }
 
-const CHUNK_SIZE = 8 * 1024 * 1024 // 8 MB
+type UploadedVideo = { url: string; filename: string; originalname: string; mimetype: string; size: number; storage: string }
+
 const MAX_VIDEO_SIZE = 2 * 1024 * 1024 * 1024 // 2 GB — khớp giới hạn BE ở initChunkUpload
 const VIDEO_EXT_RE = /\.(mp4|mov|m4v|avi|mkv|webm|flv|wmv|mpe?g|3gp)$/i
 
@@ -31,108 +41,61 @@ function dragHasFiles(e: React.DragEvent) {
   return Array.from(e.dataTransfer?.types ?? []).includes('Files')
 }
 
+function discardTaskVideo(taskId: string, qc: QueryClient) {
+  return deleteTaskPendingVideo(taskId)
+    .catch(() => {})
+    .finally(() => {
+      qc.invalidateQueries({ queryKey: ['task-auto', 'tasks'] })
+      qc.invalidateQueries({ queryKey: ['task-auto', 'task', taskId] })
+    })
+}
+
 async function uploadVideoToServer(
   taskId: string,
   file: File,
   onProgress: (pct: number) => void,
-): Promise<{ url: string; filename: string; originalname: string; mimetype: string; size: number; storage: string }> {
-  const mime = file.type || 'video/mp4'
-
-  // 1. Init — BE mở phiên Google Drive resumable, trả uploadUrl
-  const { uploadId, uploadUrl, chunkSize } = await apiClient
-    .post<{ uploadId: string; uploadUrl: string; chunkSize: number }>(
-      `/task-auto/tasks/${taskId}/upload-video/init`,
-      { filename: file.name, mimetype: mime, totalSize: file.size },
-    )
-    .then(r => r.data)
-
-  const effectiveChunkSize = chunkSize || CHUNK_SIZE
-  const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
-  let driveFileId: string | undefined
-  let offset = 0
-
-  const syncStatus = async () => {
-    const s = await apiClient
-      .post<{ uploadedBytes: number; totalSize: number; completed: boolean; driveFileId?: string }>(
-        `/task-auto/tasks/${taskId}/upload-video/status`, { uploadId },
-      )
+  signal: AbortSignal,
+): Promise<UploadedVideo> {
+  const base = `/task-auto/tasks/${taskId}/upload-video`
+  const cancelled = () => new PartUploadError('Đã huỷ upload', 499)
+  try {
+    const { uploadId, chunkSize, partUploadUrl } = await apiClient
+      .post<{ uploadId: string; chunkSize: number; partUploadUrl: string }>(`${base}/init`, {
+        filename: file.name, mimetype: file.type || 'video/mp4', totalSize: file.size,
+      })
       .then(r => r.data)
-    driveFileId = s.driveFileId || driveFileId
-    offset = Math.min(s.uploadedBytes || 0, file.size)
-    onProgress(Math.round((offset / file.size) * 90))
-    return s
-  }
 
-  // 2. PUT từng chunk thẳng lên Google Drive resumable URL (Content-Range cho phép resume)
-  while (offset < file.size) {
-    const start = offset
-    const end = Math.min(start + effectiveChunkSize, file.size) - 1
-    const blob = file.slice(start, end + 1)
-    let uploaded = false
-
-    for (let attempt = 1; attempt <= 5; attempt++) {
-      try {
-        const res = await fetch(uploadUrl, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': mime,
-            'Content-Range': `bytes ${start}-${end}/${file.size}`,
-          },
-          body: blob,
-          signal: AbortSignal.timeout(120_000),
-        })
-
-        if (res.status === 429) {
-          const wait = parseInt(res.headers.get('Retry-After') ?? '5', 10)
-          await sleep(Math.max(wait * 1000, 3000))
-          attempt-- // không tính lần bị rate-limit
-          continue
+    const direct = createDirectPartUploader(partUploadUrl, file.name)
+    const uploader: PartUploader = {
+      sendPart: async (partNumber, chunk) => {
+        if (signal.aborted) throw cancelled()
+        try {
+          await direct.sendPart(partNumber, chunk)
+        } catch (err) {
+          throw signal.aborted ? cancelled() : err
         }
-        if (res.status === 200 || res.status === 201) {
-          const data = await res.json().catch(() => ({}))
-          driveFileId = (data as { id?: string }).id
-          offset = file.size
-          uploaded = true
-          break
-        }
-        if (res.status === 308) {
-          offset = end + 1
-          uploaded = true
-          break
-        }
-        const text = await res.text().catch(() => res.statusText)
-        throw new Error(`Google Drive upload lỗi (${res.status}): ${text}`)
-      } catch (err) {
-        if (attempt === 5) {
-          const s = await syncStatus().catch(() => null)
-          if (s?.completed) { driveFileId = s.driveFileId; offset = file.size; uploaded = true; break }
-          if (offset > start) { uploaded = true; break } // Google đã nhận 1 phần → sang chunk kế
-          throw err
-        }
-        await sleep(1000 * attempt)
-      }
+      },
+      uploadedParts: direct.uploadedParts,
+    }
+    try {
+      await Promise.race([
+        uploadInParts(file, chunkSize, uploader, { onProgress: pct => { if (!signal.aborted) onProgress(pct) } }),
+        new Promise<never>((_, reject) => signal.addEventListener('abort', () => reject(cancelled()), { once: true })),
+      ])
+    } catch (err) {
+      abortTaskVideoUpload(taskId, uploadId).catch(() => {})
+      throw err
     }
 
-    if (!uploaded) throw new Error('Upload chunk lên Google Drive thất bại')
-    onProgress(Math.round((offset / file.size) * 90))
-  }
-
-  // 3. Finish — BE xác nhận Drive nhận đủ, đăng ký video tạm
-  if (!driveFileId) {
-    const s = await syncStatus()
-    driveFileId = s.driveFileId
-  }
-  onProgress(95)
-  const result = await apiClient
-    .post<{ url: string; filename: string; originalname: string; mimetype: string; size: number; storage: string }>(
-      `/task-auto/tasks/${taskId}/upload-video/finish`,
-      { uploadId, driveFileId },
-      { timeout: 120_000 },
+    onProgress(95)
+    const result = await finishWithRetry(() =>
+      apiClient.post<UploadedVideo>(`${base}/finish`, { uploadId }, { timeout: 120_000 }).then(r => r.data),
     )
-    .then(r => r.data)
-
-  onProgress(100)
-  return result
+    onProgress(100)
+    return result
+  } catch (err) {
+    throw new Error(uploadErrorMessage(err))
+  }
 }
 
 export function SubmitModal({ task, isResubmit = false, onClose, onSuccess }: Props) {
@@ -142,29 +105,75 @@ export function SubmitModal({ task, isResubmit = false, onClose, onSuccess }: Pr
   const [file, setFile]           = useState<File | null>(null)
   const [uploadPct, setUploadPct] = useState(0)
   const [uploading, setUploading] = useState(false)
-  const [uploadedVideo, setUploadedVideo] = useState<{ url: string; filename: string; originalname: string; mimetype: string; size: number; storage: string } | null>(null)
+  const [uploadedVideo, setUploadedVideo] = useState<UploadedVideo | null>(null)
   const [showManual, setShowManual] = useState(false)
   const [manualUrl, setManualUrl]   = useState(task.result_url?.startsWith('/task-auto/') ? '' : (task.result_url || ''))
   const [dragActive, setDragActive] = useState(false)
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false)
   const dragDepth = useRef(0)
+  const uploadAbort = useRef<AbortController | null>(null)
+  const unsubmittedUrl = useRef<string | null>(null)
+  const submitting = useRef(false)
+
+  const discardUnsubmittedVideo = () => {
+    if (!unsubmittedUrl.current) return
+    unsubmittedUrl.current = null
+    void discardTaskVideo(task.id, qc)
+  }
+
+  useEffect(() => {
+    const taskId = task.id
+    return () => {
+      uploadAbort.current?.abort()
+      if (unsubmittedUrl.current && !submitting.current) {
+        unsubmittedUrl.current = null
+        void discardTaskVideo(taskId, qc)
+      }
+    }
+  }, [task.id, qc])
 
   const startUpload = async (f: File) => {
+    const previous = uploadedVideo
+    const controller = new AbortController()
+    uploadAbort.current = controller
     setFile(f)
     setUploadedVideo(null)
     setManualUrl('')
     setUploading(true)
     setUploadPct(0)
     try {
-      const result = await uploadVideoToServer(task.id, f, pct => setUploadPct(pct))
+      const result = await uploadVideoToServer(task.id, f, pct => setUploadPct(pct), controller.signal)
+      unsubmittedUrl.current = result.url
+      if (controller.signal.aborted) {
+        discardUnsubmittedVideo()
+        return
+      }
       setUploadedVideo(result)
       toast.success('Upload video thành công!')
     } catch (err: any) {
+      if (controller.signal.aborted) return
       toast.error(err?.response?.data?.message || err?.message || 'Upload thất bại')
       setFile(null)
+      setUploadedVideo(previous)
     } finally {
+      if (uploadAbort.current === controller) uploadAbort.current = null
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
+  }
+
+  const requestClose = () => {
+    if (uploading || unsubmittedUrl.current) {
+      setShowCloseConfirm(true)
+      return
+    }
+    onClose()
+  }
+
+  const confirmClose = () => {
+    setShowCloseConfirm(false)
+    toast(uploading ? 'Đã huỷ upload video' : 'Đã xoá video chưa nộp')
+    onClose()
   }
 
   // Cửa vào chung cho cả chọn file lẫn kéo-thả: chặn sai định dạng / quá 2GB trước khi gọi BE
@@ -251,28 +260,36 @@ export function SubmitModal({ task, isResubmit = false, onClose, onSuccess }: Pr
       // Pass result_url only for manual link; otherwise it's already set by the upload.
       await submitTask(task.id, manualUrl || undefined)
     },
+    onMutate: () => { submitting.current = true },
     onSuccess: () => {
+      if (manualUrl.trim()) discardUnsubmittedVideo()
+      unsubmittedUrl.current = null
       toast.success(isResubmit ? 'Đã nộp lại task thành công!' : 'Đã nộp task thành công!')
       qc.invalidateQueries({ queryKey: ['task-auto', 'tasks'] })
       qc.invalidateQueries({ queryKey: ['task-auto', 'task', task.id] })
       onSuccess()
     },
-    onError: () => toast.error('Nộp task thất bại'),
+    onError: (err: any) => {
+      submitting.current = false
+      toast.error(err?.response?.data?.message ?? 'Nộp task thất bại')
+    },
   })
 
   const hasVideo = !!uploadedVideo || !!manualUrl.trim()
   const canSubmit = !uploading && !submitMut.isPending && hasVideo
 
   const handleRemoveVideo = () => {
+    discardUnsubmittedVideo()
     setFile(null)
     setUploadedVideo(null)
     setUploadPct(0)
   }
 
   return (
+    <>
     <DarkModal
       open
-      onClose={onClose}
+      onClose={requestClose}
       title={isResubmit ? 'Nộp lại task' : 'Nộp task'}
       subtitle={`Task: ${task.content?.title || task.id}`}
       size="md"
@@ -283,7 +300,7 @@ export function SubmitModal({ task, isResubmit = false, onClose, onSuccess }: Pr
           </p>
           <div className="flex gap-3 ml-auto">
             <button
-              onClick={onClose}
+              onClick={requestClose}
               className="px-5 py-2.5 text-sm font-semibold text-slate-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all"
             >
               Huỷ
@@ -324,8 +341,8 @@ export function SubmitModal({ task, isResubmit = false, onClose, onSuccess }: Pr
         {/* Info banner */}
         <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-50/60 border border-blue-100 rounded-2xl px-4 py-3.5 flex gap-3 items-start">
           <p className="text-xs text-blue-700 leading-relaxed pt-0.5">
-            Video sẽ được <strong className="font-semibold text-blue-800">upload lên Google Drive ngay khi nộp</strong>.
-            Nếu task bị từ chối, video sẽ bị xóa khỏi Drive và bạn cần upload lại khi nộp lại.
+            Video sẽ được <strong className="font-semibold text-blue-800">upload lên kho lưu trữ ngay khi nộp</strong>.
+            Nếu task bị từ chối, video sẽ bị xóa khỏi kho và bạn cần upload lại khi nộp lại.
           </p>
         </div>
 
@@ -403,7 +420,7 @@ export function SubmitModal({ task, isResubmit = false, onClose, onSuccess }: Pr
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-xs text-slate-400">{(uploadedVideo.size / 1024 / 1024).toFixed(1)} MB</span>
                     <span className="w-1 h-1 rounded-full bg-slate-300" />
-                    <span className="text-xs font-semibold text-emerald-600">Đã lên Google Drive</span>
+                    <span className="text-xs font-semibold text-emerald-600">Đã lên kho lưu trữ</span>
                   </div>
                 </div>
                 <button
@@ -436,7 +453,7 @@ export function SubmitModal({ task, isResubmit = false, onClose, onSuccess }: Pr
                   type="url"
                   placeholder="https://drive.google.com/..."
                   value={manualUrl}
-                  onChange={e => { setManualUrl(e.target.value); setUploadedVideo(null) }}
+                  onChange={e => { setManualUrl(e.target.value); if (uploadedVideo) handleRemoveVideo() }}
                 />
               </div>
             </div>
@@ -473,5 +490,18 @@ export function SubmitModal({ task, isResubmit = false, onClose, onSuccess }: Pr
         )}
       </div>
     </DarkModal>
+    <ConfirmDialog
+      open={showCloseConfirm}
+      title={uploading ? 'Huỷ upload video?' : 'Đóng mà không nộp?'}
+      message={uploading
+        ? 'Video đang tải lên sẽ bị huỷ và không được lưu lại.'
+        : 'Video vừa tải lên chưa được nộp. Nếu đóng bây giờ, video sẽ bị xoá khỏi kho lưu trữ và bạn cần tải lên lại.'}
+      confirmLabel={uploading ? 'Huỷ upload' : 'Đóng & xoá video'}
+      cancelLabel={uploading ? 'Tiếp tục upload' : 'Ở lại'}
+      danger
+      onConfirm={confirmClose}
+      onCancel={() => setShowCloseConfirm(false)}
+    />
+    </>
   )
 }

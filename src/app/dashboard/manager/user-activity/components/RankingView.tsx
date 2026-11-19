@@ -17,7 +17,19 @@ interface RankingViewProps {
         traffic: RankingUser[];
         revenue: RankingUser[];
     };
+    dateRange: { start: Date; end: Date };
 }
+
+const formatPeriod = ({ start, end }: { start: Date; end: Date }): string => {
+    const dayMonth = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const sameMonth = start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth();
+    const lastDayOfMonth = new Date(end.getFullYear(), end.getMonth() + 1, 0).getDate();
+    if (sameMonth && start.getDate() === 1 && end.getDate() === lastDayOfMonth) {
+        return `Tháng ${start.getMonth() + 1}/${start.getFullYear()}`;
+    }
+    if (sameMonth && start.getDate() === end.getDate()) return `${dayMonth(start)}/${start.getFullYear()}`;
+    return `${dayMonth(start)} – ${dayMonth(end)}/${end.getFullYear()}`;
+};
 
 const getAvatarUrl = (url: string | null, name: string) => {
     if (!url) return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`;
@@ -31,7 +43,7 @@ const getAvatarUrl = (url: string | null, name: string) => {
 };
 
 const parseRawValue = (val: string): number =>
-    parseFloat(val.replace(/[^0-9.]/g, '')) || 0;
+    parseInt(val.replace(/\D/g, ''), 10) || 0;
 
 const formatGap = (gap: number): string => {
     if (gap >= 1_000_000) return `${(gap / 1_000_000).toFixed(1)}M`;
@@ -101,6 +113,7 @@ const RankingCard = ({
     unit,
     iconBg,
     barColorClass,
+    periodLabel,
 }: {
     title: string;
     subtitle: string;
@@ -109,18 +122,15 @@ const RankingCard = ({
     unit: string;
     iconBg: string;
     barColorClass: (rank: number) => string;
+    periodLabel: string;
 }) => {
-    if (!users || users.length === 0) return null;
-
-    const hasPodium = users.length >= 3;
+    // Bục chỉ dựng khi đủ 3 người có số > 0 (danh sách đã sắp giảm dần) — không đưa người số 0 lên bục.
+    const hasPodium = users.length >= 3 && parseRawValue(users[2].value) > 0;
     const podiumUsers = hasPodium ? PODIUM_ORDER.map(i => users[i]) : [];
     const listUsers = users.slice(hasPodium ? 3 : 0);
 
     const maxVal = Math.max(...users.map(u => parseRawValue(u.value)), 1);
     const top1Val = parseRawValue(users[0]?.value || '0');
-
-    const now = new Date();
-    const monthLabel = `Tháng ${now.getMonth() + 1}/${now.getFullYear()}`;
 
     return (
         <div className="rounded-2xl overflow-hidden border border-slate-200/80 shadow-md flex flex-col">
@@ -141,10 +151,18 @@ const RankingCard = ({
                         </div>
                     </div>
                     <span className="text-[11px] font-semibold text-slate-300 bg-slate-700/50 border border-slate-600/50 rounded-lg px-2.5 py-1 flex-shrink-0">
-                        {monthLabel}
+                        {periodLabel}
                     </span>
                 </div>
             </div>
+
+            {users.length === 0 && (
+                <div className="flex-1 bg-white px-5 py-10 text-center">
+                    <Icon className="w-8 h-8 mx-auto mb-3 text-slate-300" aria-hidden />
+                    <p className="text-sm font-semibold text-slate-600">Không có thành viên nào để xếp hạng {unit}</p>
+                    <p className="text-xs text-slate-500 mt-1">Team đang lọc chưa có thành viên đang hoạt động — chọn team khác.</p>
+                </div>
+            )}
 
             {/* Podium — top 3 */}
             {hasPodium && (
@@ -197,9 +215,8 @@ const RankingCard = ({
                 </div>
             )}
 
-            {/* List — ranks 4 and 5 */}
             {listUsers.length > 0 && (
-                <div className="p-4 space-y-2 flex-1 bg-white">
+                <div className="p-4 space-y-2 flex-1 bg-white max-h-[640px] overflow-y-auto">
                     {listUsers.map((user) => {
                         const rawVal = parseRawValue(user.value);
                         const barPct = Math.round((rawVal / maxVal) * 100);
@@ -234,7 +251,7 @@ const RankingCard = ({
                                 {/* Value + gap */}
                                 <div className="text-right flex-shrink-0 min-w-[60px]">
                                     <span className="block text-[13px] font-black text-slate-700 tabular-nums">{user.value}</span>
-                                    {top1Val > 0 && gap > 0 && (
+                                    {top1Val > 0 && gap > 0 && rawVal > 0 && (
                                         <span className="block text-[9px] font-semibold text-rose-400 mt-0.5">
                                             -{formatGap(gap)} vs #1
                                         </span>
@@ -246,56 +263,15 @@ const RankingCard = ({
                 </div>
             )}
 
-            {/* If no podium, show all in plain list */}
-            {!hasPodium && users.length > 0 && (
-                <div className="p-4 space-y-2 flex-1 bg-white">
-                    {users.map((user) => {
-                        const rawVal = parseRawValue(user.value);
-                        const barPct = Math.round((rawVal / maxVal) * 100);
-
-                        return (
-                            <div key={user.rank} className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-slate-50/80 border border-slate-100">
-                                <div className="w-7 h-7 rounded-lg bg-slate-200 text-slate-500 flex items-center justify-center text-[11px] font-black flex-shrink-0">
-                                    {user.rank}
-                                </div>
-                                <div className="w-9 h-9 rounded-full overflow-hidden border border-slate-200 bg-white flex-shrink-0">
-                                    <AvatarImg src={user.avatar} name={user.name} size={36} className="w-full h-full rounded-full" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-[12px] font-bold text-slate-700 truncate">{user.name}</p>
-                                    <div className="mt-1.5 h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
-                                        <div className={`h-full rounded-full ${barColorClass(user.rank)}`} style={{ width: `${barPct}%` }} />
-                                    </div>
-                                </div>
-                                <span className="text-[13px] font-black text-slate-700 tabular-nums flex-shrink-0">{user.value}</span>
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
         </div>
     );
 };
 
-const RankingView = ({ rankings }: RankingViewProps) => {
-    const defaultTraffic: RankingUser[] = [
-        { rank: 1, name: 'Quang Đạt', avatar: 'https://i.pravatar.cc/150?u=r1', value: '580,266' },
-        { rank: 2, name: 'Nguyễn Toàn', avatar: 'https://i.pravatar.cc/150?u=r2', value: '222,026' },
-        { rank: 3, name: 'Nguyễn Phương Thảo', avatar: 'https://i.pravatar.cc/150?u=r3', value: '159,988' },
-        { rank: 4, name: 'Nguyễn Quốc Huy', avatar: 'https://i.pravatar.cc/150?u=r4', value: '50,749' },
-        { rank: 5, name: 'Nguyễn Văn Đạt', avatar: 'https://i.pravatar.cc/150?u=r5', value: '11,552' },
-    ];
+const RankingView = ({ rankings, dateRange }: RankingViewProps) => {
+    const periodLabel = formatPeriod(dateRange);
 
-    const defaultRevenue: RankingUser[] = [
-        { rank: 1, name: 'Nguyễn Phương Thảo', avatar: 'https://i.pravatar.cc/150?u=r3', value: '0' },
-        { rank: 2, name: 'Nguyễn Quốc Huy', avatar: 'https://i.pravatar.cc/150?u=r4', value: '0' },
-        { rank: 3, name: 'Nguyễn Toàn', avatar: 'https://i.pravatar.cc/150?u=r2', value: '0' },
-        { rank: 4, name: 'Nguyễn Văn Đạt', avatar: 'https://i.pravatar.cc/150?u=r5', value: '0' },
-        { rank: 5, name: 'Quang Đạt', avatar: 'https://i.pravatar.cc/150?u=r1', value: '0' },
-    ];
-
-    const trafficRanking = rankings?.traffic || defaultTraffic;
-    const revenueRanking = rankings?.revenue || defaultRevenue;
+    const trafficRanking = rankings?.traffic ?? [];
+    const revenueRanking = rankings?.revenue ?? [];
 
     const trafficBarColor = (rank: number) => {
         if (rank === 1) return 'bg-gradient-to-r from-amber-400 to-yellow-400';
@@ -315,21 +291,23 @@ const RankingView = ({ rankings }: RankingViewProps) => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             <RankingCard
                 title="BXH TRAFFIC"
-                subtitle="Top 5 chiến binh bùng nổ nhất"
+                subtitle={`${trafficRanking.length} thành viên · chưa báo cáo tính 0`}
                 icon={Activity}
                 users={trafficRanking}
-                unit="Lượt xem"
+                unit="traffic"
                 iconBg="bg-blue-500/20 text-blue-400 border border-blue-400/30"
                 barColorClass={trafficBarColor}
+                periodLabel={periodLabel}
             />
             <RankingCard
                 title="BXH DOANH THU"
-                subtitle="Top 5 chiến binh bùng nổ nhất"
+                subtitle={`${revenueRanking.length} thành viên · chưa báo cáo tính 0`}
                 icon={DollarSign}
                 users={revenueRanking}
-                unit="VNĐ"
+                unit="doanh thu"
                 iconBg="bg-emerald-500/20 text-emerald-400 border border-emerald-400/30"
                 barColorClass={revenueBarColor}
+                periodLabel={periodLabel}
             />
         </div>
     );

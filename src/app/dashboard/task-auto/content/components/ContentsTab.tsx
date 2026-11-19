@@ -7,6 +7,7 @@ import { Plus, Trash2, Loader2, Search, Tags, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { ContentFormModal } from '@/components/task-auto/ContentFormModal'
+import { ContentProductFilter } from '@/components/task-auto/ContentProductFilter'
 import {
   getContent, deleteContent,
   getContentLines, createContentLine, deleteContentLine,
@@ -95,6 +96,7 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
   const [search, setSearch] = useState('')
   const [classificationFilter, setClassificationFilter] = useState('')
   const [marketFilter, setMarketFilter] = useState('')
+  const [productSku, setProductSku] = useState('')
   const [showCatalogPanel, setShowCatalogPanel] = useState(false)
   const [presetLineId, setPresetLineId] = useState<string | undefined>(undefined)
   const [showModal, setShowModal] = useState(false)
@@ -133,7 +135,7 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
     onError: () => { toast.error('Không thể xóa content'); setDeletingId(null) },
   })
 
-  const openCreate = () => { setEditing(null); setPresetLineId(undefined); setShowModal(true) }
+  const openCreate = (contentLineId?: string) => { setEditing(null); setPresetLineId(contentLineId); setShowModal(true) }
   // Danh sách chỉ trả về field rút gọn (không có body/script) để nhẹ payload — mở sửa phải lấy
   // lại bản đầy đủ, không thì form hiện trống dù content đã có nội dung.
   const openEdit = (c: Content) => {
@@ -191,6 +193,8 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
               compact
             />
 
+            <ContentProductFilter scope={{ kind: 'global', brandType }} value={productSku} onChange={setProductSku} />
+
             <button
               onClick={() => setShowCatalogPanel(v => !v)}
               className={cn(
@@ -206,13 +210,17 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
 
             {canCreateOrEdit && (
               <button
-                onClick={openCreate}
+                onClick={() => openCreate()}
                 className="ml-auto bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-5 py-3.5 text-base font-semibold flex items-center gap-2 transition-colors shrink-0"
               >
-                <Plus className="w-5 h-5" /> Thêm content
+                <Plus className="w-5 h-5" aria-hidden="true" /> Thêm content
               </button>
             )}
           </div>
+        </div>
+
+        <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-5 py-3 text-indigo-700 text-sm">
+          Kho tổng gồm content <strong>thêm trực tiếp</strong>, content <strong>đẩy từ kho team</strong> và <strong>content win</strong> — content của nhiệm vụ có video đạt trên 10K lượt xem.
         </div>
 
         {/* Board theo tuyến */}
@@ -222,12 +230,13 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
           search={search}
           classificationId={classificationFilter}
           market={marketFilter}
+          productSku={productSku}
           canEdit={canCreateOrEdit}
           canDelete={canDelete}
           onSelect={openDetail}
           onEdit={openEdit}
           onDelete={c => setDeletingId(c.id)}
-          onAdd={contentLineId => { setPresetLineId(contentLineId); setEditing(null); setShowModal(true) }}
+          onAdd={openCreate}
         />
       </div>
 
@@ -279,8 +288,8 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
         editing={editing}
         brandType={brandType}
         initialContentLineId={presetLineId}
-        onClose={() => { setShowModal(false); setPresetLineId(undefined) }}
-        onSuccess={() => { setShowModal(false); setPresetLineId(undefined) }}
+        onClose={() => setShowModal(false)}
+        onSuccess={() => setShowModal(false)}
       />
 
       <ConfirmDialog
