@@ -376,7 +376,7 @@ export function TeamProductFormModal({ open, teamId, teamProduct, month, canSetT
           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
             Hình ảnh sản phẩm
           </p>
-          <MultiImagePicker ref={imagePickerRef} values={form.image_urls} onChange={urls => setForm(f => ({ ...f, image_urls: urls }))} />
+          <MultiImagePicker ref={imagePickerRef} uploadMeta={{ team_id: teamId, title: form.name }} values={form.image_urls} onChange={urls => setForm(f => ({ ...f, image_urls: urls }))} />
         </div>
 
         <div className="space-y-4">

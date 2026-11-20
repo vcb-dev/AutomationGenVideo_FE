@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { X, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import { cn } from '@/lib/utils'
+import { TaskVideoPlayer } from './TaskVideoPlayer'
 
 interface Props {
   resultUrl: string
@@ -16,7 +17,7 @@ interface Props {
 
 export function VideoPreviewOverlay({ resultUrl, onClose, onPrev, onNext, hasPrev, hasNext }: Props) {
   useScrollLock()
-  const embedUrl = resultUrl.replace(/\/view(\?.*)?$/, '/preview')
+  const isDrive = resultUrl.includes('drive.google.com')
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -54,11 +55,10 @@ export function VideoPreviewOverlay({ resultUrl, onClose, onPrev, onNext, hasPre
         >
           <X className="w-6 h-6" />
         </button>
-        <iframe
-          src={embedUrl}
-          style={{ width: 'min(360px, 90vw)', height: 'min(640px, 80vh)', border: 'none', borderRadius: '12px' }}
-          allow="autoplay"
-          allowFullScreen
+        <TaskVideoPlayer
+          url={resultUrl}
+          title="Video kết quả"
+          style={{ width: 'min(360px, 90vw)', height: 'min(640px, 80vh)', borderRadius: '12px' }}
         />
         <a
           href={resultUrl}
@@ -67,7 +67,7 @@ export function VideoPreviewOverlay({ resultUrl, onClose, onPrev, onNext, hasPre
           className="mt-3 flex items-center gap-1.5 text-xs text-white/60 hover:text-white transition-colors"
         >
           <ExternalLink className="w-3 h-3" />
-          Mở trong Google Drive
+          {isDrive ? 'Mở trong Google Drive' : 'Mở video trong tab mới'}
         </a>
       </div>
 

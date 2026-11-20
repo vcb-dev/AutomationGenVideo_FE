@@ -8,13 +8,14 @@ interface Props {
   title: string
   message: string
   confirmLabel: string
+  cancelLabel?: string
   isLoading?: boolean
   onConfirm: () => void
   onCancel: () => void
   danger?: boolean
 }
 
-export function ConfirmDialog({ open, title, message, confirmLabel, isLoading, onConfirm, onCancel, danger }: Props) {
+export function ConfirmDialog({ open, title, message, confirmLabel, cancelLabel = 'Hủy', isLoading, onConfirm, onCancel, danger }: Props) {
   const backdrop = useBackdropClose(onCancel)
 
   if (!open) return null
@@ -36,7 +37,7 @@ export function ConfirmDialog({ open, title, message, confirmLabel, isLoading, o
             onClick={onCancel}
             className="px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-600 bg-gray-100 hover:bg-gray-200 transition-colors"
           >
-            Hủy
+            {cancelLabel}
           </button>
           <button
             onClick={onConfirm}

@@ -261,6 +261,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
         editing={editingContent as unknown as Content}
         userId={userId}
         teamId={editingContent?.team_id}
+        uploadTeamId={actionTeamId}
         brandType={actionTeam?.brand_type ?? brandType}
         initialMarket={actionTeam?.market ?? 'VIETNAM'}
         initialContentLineId={presetLineId}

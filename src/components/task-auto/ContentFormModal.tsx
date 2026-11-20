@@ -18,6 +18,7 @@ import {
   createContent, updateContent, createEditorContent, updateTeamContent,
   getContentLines, uploadVoiceFile,
   getContentClassifications, createContentClassification,
+  type UploadMeta,
 } from '@/lib/api/task-auto'
 import type { Content } from '@/types/task-auto'
 
@@ -92,9 +93,11 @@ export interface VoicePickerHandle {
   resolvePending: (url: string) => Promise<string>
 }
 
-export const VoicePicker = forwardRef<VoicePickerHandle, { value: string; onChange: (url: string) => void }>(
-  function VoicePicker({ value, onChange }, ref) {
+export const VoicePicker = forwardRef<VoicePickerHandle, { value: string; onChange: (url: string) => void; uploadMeta?: UploadMeta }>(
+  function VoicePicker({ value, onChange, uploadMeta }, ref) {
     const fileRef = useRef<HTMLInputElement>(null)
+    const uploadMetaRef = useRef(uploadMeta)
+    uploadMetaRef.current = uploadMeta
     const audioRef = useRef<HTMLAudioElement>(null)
     const [playing, setPlaying] = useState(false)
 
@@ -138,7 +141,7 @@ export const VoicePicker = forwardRef<VoicePickerHandle, { value: string; onChan
         const cached = resolvedCache.current.get(url)
         if (cached) return cached
         if (pendingBlobUrl.current === url && pendingFile.current) {
-          const { url: uploaded } = await uploadVoiceFile(pendingFile.current)
+          const { url: uploaded } = await uploadVoiceFile(pendingFile.current, uploadMetaRef.current)
           resolvedCache.current.set(url, uploaded)
           return uploaded
         }
@@ -218,6 +221,7 @@ interface ContentFormModalProps {
   userId?: string
   /** Khi sửa content thuộc kho team (TeamContent), cần teamId để PATCH đúng endpoint team thay vì kho tổng */
   teamId?: string
+  uploadTeamId?: string
   brandType?: BrandType
   initialMarket?: string
   /** Preset tuyến khi mở form tạo mới từ 1 cột cụ thể của board — bỏ qua khi đang sửa content có sẵn */
@@ -227,7 +231,7 @@ interface ContentFormModalProps {
   initialValues?: Partial<Pick<Content, 'title' | 'code' | 'body' | 'file_content_url' | 'content_line_id' | 'classification_id'>> & { source?: ContentSource }
 }
 
-export function ContentFormModal({ open, editing, onClose, onSuccess, userId, teamId, brandType, initialMarket, initialContentLineId, initialValues }: ContentFormModalProps) {
+export function ContentFormModal({ open, editing, onClose, onSuccess, userId, teamId, uploadTeamId, brandType, initialMarket, initialContentLineId, initialValues }: ContentFormModalProps) {
   const qc = useQueryClient()
   const isEdit = !!editing
 
@@ -239,6 +243,11 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
   const [initialSourceMode, setInitialSourceMode] = useState<ContentSourceMode>('text')
   const [showErrors, setShowErrors] = useState(false)
   const formRef = useRef<HTMLDivElement>(null)
+  const uploadMeta: UploadMeta = {
+    team_id: teamId ?? uploadTeamId,
+    content_line_id: form.content_line_id ?? undefined,
+    title: form.title ?? undefined,
+  }
   const [market, setMarket] = useState<string>(initialMarket ?? 'VIETNAM')
   const [resolvingVoice, setResolvingVoice] = useState(false)
   const voicePickerRef = useRef<VoicePickerHandle>(null)
@@ -429,6 +438,7 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
           <ContentSourcePicker
             value={source}
             onChange={setSource}
+            uploadMeta={uploadMeta}
             body={form.body ?? ''}
             onBodyChange={body => setForm(f => ({ ...f, body }))}
             textareaProps={{ rows: 12 }}
@@ -460,6 +470,7 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
           </p>
           <VoicePicker
             ref={voicePickerRef}
+            uploadMeta={uploadMeta}
             value={form.voice_url ?? ''}
             onChange={url => setForm(f => ({ ...f, voice_url: url }))}
           />

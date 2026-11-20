@@ -35,7 +35,8 @@ import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
 import { DateRangeFilter } from '@/components/task-auto/DateRangeFilter'
 import { formatDateTime } from '@/components/task-auto/helpers'
 import { getTasks, updateTaskPublishedLinks } from '@/lib/api/task-auto'
-import { cn, driveImageUrl, drivePreviewUrl } from '@/lib/utils'
+import { cn, videoThumbnailUrl } from '@/lib/utils'
+import { TaskVideoPlayer } from './detail/TaskVideoPlayer'
 import { planPlayback } from '@/lib/video-playback'
 import type { PublishedVideo } from '@/types/facebook'
 import type { Task } from '@/types/task-auto'
@@ -506,7 +507,7 @@ function TaskCard({
 }) {
   const title = resolveContentTitle(task) ?? 'Không có tiêu đề'
   const productName = resolveProductName(task)
-  const thumb = driveImageUrl(task.result_url, 600)
+  const thumb = videoThumbnailUrl(task.result_url, 600)
   const [thumbFailed, setThumbFailed] = useState(false)
   const hasFacebookLink = (task.published_links ?? []).some(isFacebookLink)
   const gap = gapToPost(task.submitted_at, postedAt)
@@ -606,7 +607,7 @@ const FRAME_STYLE = {
   aspectRatio: '9 / 16',
 } as const
 
-/** Xem video đã làm (Drive) cạnh bài đăng để so — phủ kín hộp thoại như PostPreview ở picker. */
+/** Xem video đã làm (R2/Drive) cạnh bài đăng để so — phủ kín hộp thoại như PostPreview ở picker. */
 function TaskVideoPreview({
   task,
   video,
@@ -633,7 +634,8 @@ function TaskVideoPreview({
   const rootRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   const title = resolveContentTitle(task) ?? 'Không có tiêu đề'
-  const src = drivePreviewUrl(task.result_url)
+  const src = task.result_url
+  const isDrive = !!src?.includes('drive.google.com')
 
   useEffect(() => {
     closeRef.current?.focus()
@@ -663,7 +665,7 @@ function TaskVideoPreview({
           <figcaption className="text-xs font-semibold text-white/70">Video đã duyệt</figcaption>
           <div className="max-w-full overflow-hidden rounded-xl bg-black shadow-2xl ring-1 ring-white/10" style={FRAME_STYLE}>
             {src ? (
-              <iframe key={src} src={src} title={`Video ${title}`} className="h-full w-full border-0" allow="autoplay" allowFullScreen />
+              <TaskVideoPlayer url={src} title={`Video ${title}`} className="h-full w-full" />
             ) : (
               <p className="flex h-full items-center justify-center p-4 text-center text-sm text-white/70">Task chưa có video</p>
             )}
@@ -749,7 +751,7 @@ function TaskVideoPreview({
               className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
             >
               <ExternalLink className="h-4 w-4" aria-hidden="true" />
-              Mở Drive
+              {isDrive ? 'Mở Drive' : 'Mở video'}
             </a>
           )}
           <button
