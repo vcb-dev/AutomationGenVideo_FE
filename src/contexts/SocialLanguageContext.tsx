@@ -20,7 +20,7 @@ const T = {
     unknownError: 'Lỗi không xác định',
     cannotDisconnectOther: 'Bạn không thể gỡ tài khoản của người khác',
     disconnectConfirmWithPages: (name: string) =>
-      `Gỡ kết nối "${name}"?\n\nTất cả Fanpage và Instagram Business liên kết sẽ bị gỡ theo.`,
+      `Gỡ kết nối "${name}"?\n\nTất cả Fanpage và tài khoản Instagram liên kết sẽ bị gỡ theo.`,
     disconnectConfirm: (name: string) => `Gỡ kết nối "${name}"?`,
     disconnected: 'Đã gỡ kết nối',
     disconnectFailed: (msg: string) => `Không thể gỡ kết nối: ${msg}`,
@@ -39,7 +39,7 @@ const T = {
     showN: (n: number) => `Hiện (${n})`,
     hide: 'Ẩn',
     addAccount: 'Thêm tài khoản',
-    igBusinessCount: (n: number) => `Instagram Business (${n})`,
+    igBusinessCount: (n: number) => `Instagram (${n})`,
     showMoreAccounts: (n: number) => `Xem thêm ${n} account`,
     collapse: 'Thu gọn',
     viewAllIg: (n: number) => `Xem tất cả ${n} Instagram account`,
@@ -47,7 +47,7 @@ const T = {
     managedPages: (n: number) => `Các Fanpage được quản lý: (${n})`,
     showMorePages: (n: number) => `Xem thêm ${n} page`,
     viewAllPages: (n: number) => `Xem tất cả ${n} page`,
-    igAutoNote: 'Instagram Business sẽ tự động được thêm khi bạn kết nối Facebook.',
+    igAutoNote: 'Instagram sẽ tự động được thêm khi bạn kết nối Facebook.',
     noAccounts: (platform: string, loginLabel: string) =>
       `Chưa có tài khoản ${platform}. Nhấn "${loginLabel}" để bắt đầu.`,
     remove: 'Gỡ',
@@ -966,7 +966,7 @@ const T = {
     unknownError: 'Unknown error',
     cannotDisconnectOther: "You cannot disconnect other users' accounts",
     disconnectConfirmWithPages: (name: string) =>
-      `Disconnect "${name}"?\n\nAll linked Fanpages and Instagram Business accounts will also be disconnected.`,
+      `Disconnect "${name}"?\n\nAll linked Fanpages and Instagram accounts will also be disconnected.`,
     disconnectConfirm: (name: string) => `Disconnect "${name}"?`,
     disconnected: 'Disconnected',
     disconnectFailed: (msg: string) => `Failed to disconnect: ${msg}`,
@@ -985,7 +985,7 @@ const T = {
     showN: (n: number) => `Show (${n})`,
     hide: 'Hide',
     addAccount: 'Add Account',
-    igBusinessCount: (n: number) => `Instagram Business (${n})`,
+    igBusinessCount: (n: number) => `Instagram (${n})`,
     showMoreAccounts: (n: number) => `Show ${n} more`,
     collapse: 'Collapse',
     viewAllIg: (n: number) => `View all ${n} Instagram account${n > 1 ? 's' : ''}`,
@@ -993,7 +993,7 @@ const T = {
     managedPages: (n: number) => `Managed Fanpages: (${n})`,
     showMorePages: (n: number) => `Show ${n} more`,
     viewAllPages: (n: number) => `View all ${n} page${n > 1 ? 's' : ''}`,
-    igAutoNote: 'Instagram Business will be automatically added when you connect Facebook.',
+    igAutoNote: 'Instagram will be automatically added when you connect Facebook.',
     noAccounts: (platform: string, loginLabel: string) =>
       `No ${platform} accounts yet. Click "${loginLabel}" to get started.`,
     remove: 'Remove',
