@@ -22,6 +22,7 @@ import { accountAvatarUrl } from '@/lib/social/account-avatar';
 import { useSocialLang } from '@/contexts/SocialLanguageContext';
 import { isPlatformModeSupported, PostMode } from '@/lib/social/platform-support';
 import TikTokPostSettings from './TikTokPostSettings';
+import { usePublishErrorText } from '@/lib/social/use-publish-error-text';
 import {
   EMPTY_TIKTOK_SETTINGS,
   TikTokComposerSettings,
@@ -101,6 +102,7 @@ function DateTimePicker24h({
 
 export default function ComposePage() {
   const { t } = useSocialLang();
+  const errText = usePublishErrorText();
   const isDraggingRef   = useRef(false);
   const dragStartXRef   = useRef(0);
   const dragStartWRef   = useRef(0);
@@ -447,7 +449,7 @@ export default function ComposePage() {
               const url = typeof r?.url === 'string' ? r.url : typeof r?.videoId === 'string' ? `https://youtube.com/watch?v=${r.videoId}` : '';
               addPublishLog(t.compose.logPublished(chName, url));
             } else if (job.status === 'FAILED') {
-              addPublishLog(t.compose.logFailed(chName, job.error_msg || t.compose.logUnknownError));
+              addPublishLog(t.compose.logFailed(chName, errText(job.error_msg) || t.compose.logUnknownError));
             }
           }
           // Phát hiện worker bắt đầu xử lý (queuePosition chuyển từ có số → null)
@@ -564,7 +566,7 @@ export default function ComposePage() {
         allowedPrivacy: tiktokInfo?.privacyLevelOptions || [],
         hasVideo: postMode === 'video_vertical' && mediaUrls.length > 0,
       });
-      if (tiktokError) return toast.error(tiktokError);
+      if (tiktokError) return toast.error(t.tiktok.validation[tiktokError]);
     }
     const tiktokPrivacy = selectedTikTokAccounts.length > 0 ? encodeTikTokSettings(tiktokSettings) : undefined;
     const privacyFor = (platform: string) => (platform === 'TIKTOK' && tiktokPrivacy ? tiktokPrivacy : privacy);

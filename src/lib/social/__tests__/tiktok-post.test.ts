@@ -3,7 +3,9 @@ import {
   EMPTY_TIKTOK_SETTINGS,
   TIKTOK_OPTIONS_PREFIX,
   TikTokComposerSettings,
-  commercialLabel,
+  commercialLabelKind,
+  localizePublishError,
+  readTikTokErrorCode,
   encodeTikTokSettings,
   mergeCreatorInfos,
   validateTikTokSettings,
@@ -60,42 +62,63 @@ describe('mergeCreatorInfos', () => {
   });
 });
 
-describe('validateTikTokSettings', () => {
+describe('validateTikTokSettings — trả MÃ lỗi để giao diện dịch theo VI/EN', () => {
   const ok = { allowedPrivacy: ['PUBLIC_TO_EVERYONE', 'SELF_ONLY'], hasVideo: true };
 
-  it('hợp lệ → null', () => {
-    expect(validateTikTokSettings(s({ privacyLevel: 'SELF_ONLY' }), ok)).toBeNull();
-  });
-
-  it('chưa có video', () => {
-    expect(validateTikTokSettings(s({ privacyLevel: 'SELF_ONLY' }), { ...ok, hasVideo: false })).toMatch(/video/);
-  });
-
-  it('chưa chọn quyền riêng tư (TikTok cấm chọn sẵn)', () => {
-    expect(validateTikTokSettings(s(), ok)).toMatch(/Ai có thể xem video/);
-  });
-
-  it('quyền riêng tư không còn trong lựa chọn của kênh', () => {
-    expect(validateTikTokSettings(s({ privacyLevel: 'MUTUAL_FOLLOW_FRIENDS' }), ok)).toMatch(/chọn lại/);
-  });
-
-  it('bật nội dung thương mại mà chưa chọn loại', () => {
-    expect(validateTikTokSettings(s({ privacyLevel: 'SELF_ONLY', commercial: true }), ok)).toMatch(/Thương hiệu của bạn/);
-  });
-
-  it('nội dung có tài trợ + "Chỉ mình tôi" → không hợp lệ', () => {
-    expect(validateTikTokSettings(s({ privacyLevel: 'SELF_ONLY', commercial: true, brandContent: true }), ok)).toMatch(/Chỉ mình tôi/);
-  });
-
-  it('nội dung có tài trợ + công khai → hợp lệ', () => {
-    expect(validateTikTokSettings(s({ privacyLevel: 'PUBLIC_TO_EVERYONE', commercial: true, brandContent: true }), ok)).toBeNull();
+  it.each([
+    [s({ privacyLevel: 'SELF_ONLY' }), ok, null],
+    [s({ privacyLevel: 'SELF_ONLY' }), { ...ok, hasVideo: false }, 'video_required'],
+    [s(), ok, 'privacy_required'],
+    [s({ privacyLevel: 'MUTUAL_FOLLOW_FRIENDS' }), ok, 'privacy_invalid'],
+    [s({ privacyLevel: 'SELF_ONLY', commercial: true }), ok, 'commercial_type_required'],
+    [s({ privacyLevel: 'SELF_ONLY', commercial: true, brandContent: true }), ok, 'branded_self_only'],
+    [s({ privacyLevel: 'PUBLIC_TO_EVERYONE', commercial: true, brandContent: true }), ok, null],
+  ] as const)('ca %#', (settings, opts, want) => {
+    expect(validateTikTokSettings(settings, opts as any)).toBe(want);
   });
 });
 
-describe('commercialLabel', () => {
-  it('đúng nhãn theo loại', () => {
-    expect(commercialLabel(s())).toBeNull();
-    expect(commercialLabel(s({ commercial: true, brandOrganic: true }))).toMatch(/Nội dung quảng cáo/);
-    expect(commercialLabel(s({ commercial: true, brandOrganic: true, brandContent: true }))).toMatch(/Hợp tác có trả phí/);
+describe('commercialLabelKind', () => {
+  it('đúng loại nhãn', () => {
+    expect(commercialLabelKind(s())).toBeNull();
+    expect(commercialLabelKind(s({ commercial: true }))).toBeNull();
+    expect(commercialLabelKind(s({ commercial: true, brandOrganic: true }))).toBe('organic');
+    expect(commercialLabelKind(s({ commercial: true, brandOrganic: true, brandContent: true }))).toBe('branded');
+  });
+});
+
+describe('localizePublishError — dịch lỗi đăng bài TikTok khi giao diện ở EN', () => {
+  const dict = {
+    errorCodes: { access_token_invalid: 'Your TikTok session has expired.' } as Record<string, string>,
+    unknownError: (c: string) => `TikTok returned an error (${c})`,
+  };
+  const vi = 'Phiên đăng nhập TikTok đã hết hạn hoặc bị thu hồi. Hãy kết nối lại kênh. (mã TikTok: access_token_invalid)';
+
+  it('đọc mã TikTok cuối câu', () => {
+    expect(readTikTokErrorCode(vi)).toBe('access_token_invalid');
+    expect(readTikTokErrorCode('lỗi khác')).toBeNull();
+  });
+
+  it('VI: giữ nguyên câu gốc', () => {
+    expect(localizePublishError(vi, 'vi', dict)).toBe(vi);
+  });
+
+  it('EN + mã đã biết → câu tiếng Anh kèm mã', () => {
+    expect(localizePublishError(vi, 'en', dict)).toBe('Your TikTok session has expired. (TikTok code: access_token_invalid)');
+  });
+
+  it('EN + mã lạ → câu chung kèm mã', () => {
+    expect(localizePublishError('Lỗi gì đó (mã TikTok: weird_code)', 'en', dict))
+      .toBe('TikTok returned an error (weird_code) (TikTok code: weird_code)');
+  });
+
+  it('EN: giữ phần "| stack:" phía sau để các chỗ đang cắt stack vẫn cắt đúng', () => {
+    expect(localizePublishError(`${vi} | stack: at X`, 'en', dict))
+      .toBe('Your TikTok session has expired. (TikTok code: access_token_invalid) | stack: at X');
+  });
+
+  it('EN + lỗi không phải TikTok (Facebook, mạng…) → giữ nguyên', () => {
+    expect(localizePublishError('Request failed {"code":190}', 'en', dict)).toBe('Request failed {"code":190}');
+    expect(localizePublishError(null, 'en', dict)).toBe('');
   });
 });

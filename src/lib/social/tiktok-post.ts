@@ -8,12 +8,8 @@
  */
 import type { TikTokCreatorInfo } from '@/lib/api/social';
 
-export const TIKTOK_PRIVACY_LABELS: Record<string, string> = {
-  PUBLIC_TO_EVERYONE: 'Mọi người',
-  MUTUAL_FOLLOW_FRIENDS: 'Bạn bè (follow nhau)',
-  FOLLOWER_OF_CREATOR: 'Người theo dõi',
-  SELF_ONLY: 'Chỉ mình tôi',
-};
+// Nhãn quyền riêng tư, câu kiểm tra, nhãn nội dung thương mại: nằm trong bộ dịch
+// SocialLanguageContext (t.tiktok.*) — file này chỉ trả MÃ để giao diện tự dịch theo VI/EN.
 
 export interface TikTokComposerSettings {
   /** '' = chưa chọn — TikTok cấm chọn sẵn */
@@ -74,32 +70,60 @@ export function mergeCreatorInfos(infos: TikTokCreatorInfo[]) {
   };
 }
 
+export type TikTokSettingsError =
+  | 'video_required'
+  | 'privacy_required'
+  | 'privacy_invalid'
+  | 'commercial_type_required'
+  | 'branded_self_only';
+
 /**
- * Kiểm tra trước khi đăng. Trả câu lỗi tiếng Việt hoặc null nếu hợp lệ.
+ * Kiểm tra trước khi đăng. Trả MÃ lỗi (dịch qua t.tiktok.validation[mã]) hoặc null nếu hợp lệ.
  * Khớp các luật TikTok yêu cầu trên giao diện đăng bài.
  */
 export function validateTikTokSettings(
   s: TikTokComposerSettings,
   opts: { allowedPrivacy: string[]; hasVideo: boolean },
-): string | null {
-  if (!opts.hasVideo) return 'TikTok chỉ đăng được video — hãy thêm một video.';
-  if (!s.privacyLevel) return 'Chọn "Ai có thể xem video" cho TikTok.';
-  if (!opts.allowedPrivacy.includes(s.privacyLevel)) return 'Quyền riêng tư đã chọn không còn hợp lệ với kênh TikTok này. Hãy chọn lại.';
-  if (s.commercial && !s.brandOrganic && !s.brandContent) {
-    return 'Đã bật "Công bố nội dung thương mại" — chọn "Thương hiệu của bạn" và/hoặc "Nội dung có tài trợ".';
-  }
-  if (s.commercial && s.brandContent && s.privacyLevel === 'SELF_ONLY') {
-    return 'Nội dung có tài trợ không thể để chế độ "Chỉ mình tôi".';
-  }
+): TikTokSettingsError | null {
+  if (!opts.hasVideo) return 'video_required';
+  if (!s.privacyLevel) return 'privacy_required';
+  if (!opts.allowedPrivacy.includes(s.privacyLevel)) return 'privacy_invalid';
+  if (s.commercial && !s.brandOrganic && !s.brandContent) return 'commercial_type_required';
+  if (s.commercial && s.brandContent && s.privacyLevel === 'SELF_ONLY') return 'branded_self_only';
   return null;
 }
 
-/** Nhãn TikTok sẽ gắn lên video khi công bố nội dung thương mại */
-export function commercialLabel(s: TikTokComposerSettings): string | null {
+/** Loại nhãn TikTok sẽ gắn khi công bố nội dung thương mại (dịch qua t.tiktok.labelBranded/labelOrganic) */
+export function commercialLabelKind(s: TikTokComposerSettings): 'branded' | 'organic' | null {
   if (!s.commercial) return null;
-  if (s.brandContent) return 'Video sẽ được gắn nhãn "Hợp tác có trả phí".';
-  if (s.brandOrganic) return 'Video sẽ được gắn nhãn "Nội dung quảng cáo".';
+  if (s.brandContent) return 'branded';
+  if (s.brandOrganic) return 'organic';
   return null;
+}
+
+/** Đọc mã lỗi TikTok mà backend gắn cuối câu: "… (mã TikTok: access_token_invalid)" */
+export function readTikTokErrorCode(message: string | null | undefined): string | null {
+  const m = /\(mã TikTok: ([a-z0-9_]+)\)/i.exec(message || '');
+  return m ? m[1] : null;
+}
+
+/**
+ * Lỗi đăng bài backend trả về là tiếng Việt. Khi giao diện đang ở EN và lỗi có mã TikTok,
+ * thay bằng câu tiếng Anh theo mã (giữ mã ở cuối để tra cứu). Lỗi khác giữ nguyên.
+ */
+export function localizePublishError(
+  message: string | null | undefined,
+  lang: 'vi' | 'en',
+  dict: { errorCodes: Record<string, string>; unknownError: (code: string) => string },
+): string {
+  const msg = message || '';
+  if (lang !== 'en') return msg;
+  const code = readTikTokErrorCode(msg);
+  if (!code) return msg;
+  const stackIdx = msg.search(/\s*\|\s*stack:/i);
+  const tail = stackIdx >= 0 ? msg.slice(stackIdx) : '';
+  const text = dict.errorCodes[code] || dict.unknownError(code);
+  return `${text} (TikTok code: ${code})${tail}`;
 }
 
 export const TIKTOK_MUSIC_POLICY_URL = 'https://www.tiktok.com/legal/page/global/music-usage-confirmation/en';

@@ -2,6 +2,7 @@ import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import TikTokPostSettings from '../TikTokPostSettings';
 import { EMPTY_TIKTOK_SETTINGS, type TikTokComposerSettings } from '@/lib/social/tiktok-post';
+import { SocialLanguageProvider } from '@/contexts/SocialLanguageContext';
 
 const creatorInfo = jest.fn();
 jest.mock('@/lib/api/social', () => ({
@@ -111,5 +112,47 @@ describe('TikTokPostSettings', () => {
     creatorInfo.mockRejectedValue({ response: { data: { message: 'Kênh TikTok này được thêm thủ công' } } });
     await render(EMPTY_TIKTOK_SETTINGS);
     expect(container.textContent).toContain('Kênh TikTok này được thêm thủ công');
+  });
+
+  it('EN: mọi chữ trong khung chuyển sang tiếng Anh, không còn chữ tiếng Việt', async () => {
+    creatorInfo.mockResolvedValue(INFO);
+    localStorage.setItem('social_lang', 'en');
+    try {
+      await act(async () => {
+        root.render(
+          <SocialLanguageProvider>
+            <TikTokPostSettings accounts={[ACCOUNT]} value={{ ...EMPTY_TIKTOK_SETTINGS, commercial: true, brandContent: true }} onChange={jest.fn()} />
+          </SocialLanguageProvider>,
+        );
+      });
+      await act(async () => { await Promise.resolve(); });
+      const text = container.textContent || '';
+      for (const w of ['TikTok settings', 'Who can view this video', 'Allow viewers to', 'Comment', 'Disclose commercial content',
+        'Your brand', 'Branded content', 'Paid partnership', 'Branded Content Policy', 'Music Usage Confirmation', 'Videos up to 180 seconds']) {
+        expect(text).toContain(w);
+      }
+      expect(container.querySelector('[data-testid="privacy"]')!.getAttribute('data-placeholder')).toBe('Select who can view…');
+      expect(opts()).toEqual(['PUBLIC_TO_EVERYONE']);
+      // chỉ tên kênh (dữ liệu người dùng) được phép có dấu tiếng Việt
+      const vi = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
+      expect(text.replace('Viễn Chí Bảo', '')).not.toMatch(vi);
+    } finally {
+      localStorage.removeItem('social_lang');
+    }
+  });
+
+  it('EN: lỗi TikTok từ backend hiển thị bằng tiếng Anh theo mã', async () => {
+    creatorInfo.mockRejectedValue({ response: { data: { message: 'Phiên đăng nhập TikTok của kênh đã hết hạn hoặc bị thu hồi. (mã TikTok: reconnect_required)' } } });
+    localStorage.setItem('social_lang', 'en');
+    try {
+      await act(async () => {
+        root.render(<SocialLanguageProvider><TikTokPostSettings accounts={[ACCOUNT]} value={EMPTY_TIKTOK_SETTINGS} onChange={jest.fn()} /></SocialLanguageProvider>);
+      });
+      await act(async () => { await Promise.resolve(); });
+      expect(container.textContent).toContain('Your TikTok session has expired or was revoked');
+      expect(container.textContent).toContain('(TikTok code: reconnect_required)');
+    } finally {
+      localStorage.removeItem('social_lang');
+    }
   });
 });

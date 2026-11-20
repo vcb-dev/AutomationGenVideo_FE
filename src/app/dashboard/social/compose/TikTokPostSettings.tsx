@@ -4,12 +4,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { socialApi, type SocialAccount, type TikTokCreatorInfo } from '@/lib/api/social';
 import { FilterSelect } from '@/app/dashboard/internalChannels/components/FilterFields';
+import { useSocialLang } from '@/contexts/SocialLanguageContext';
 import {
   TIKTOK_BRANDED_POLICY_URL,
   TIKTOK_MUSIC_POLICY_URL,
-  TIKTOK_PRIVACY_LABELS,
   TikTokComposerSettings,
-  commercialLabel,
+  commercialLabelKind,
+  localizePublishError,
   mergeCreatorInfos,
 } from '@/lib/social/tiktok-post';
 
@@ -32,9 +33,11 @@ export default function TikTokPostSettings({
   /** Báo cho trang cha danh sách quyền riêng tư hợp lệ để kiểm tra trước khi đăng */
   onInfoChange?: (merged: ReturnType<typeof mergeCreatorInfos> | null) => void;
 }) {
+  const { lang, t } = useSocialLang();
+  const tt = t.tiktok;
   const [infos, setInfos] = useState<TikTokCreatorInfo[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null); // null = không lỗi, '' = lỗi không kèm lời
   const ids = accounts.map((a) => a.id).sort().join(',');
 
   useEffect(() => {
@@ -47,7 +50,8 @@ export default function TikTokPostSettings({
       .catch((err: any) => {
         if (cancelled) return;
         setInfos([]);
-        setError(err?.response?.data?.message || err?.message || 'Không lấy được thông tin kênh TikTok');
+        // null = dùng câu mặc định theo ngôn ngữ đang chọn; lỗi backend (tiếng Việt + mã TikTok) dịch lúc hiển thị
+        setError(err?.response?.data?.message || err?.message || '');
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -60,7 +64,7 @@ export default function TikTokPostSettings({
   // Nội dung có tài trợ không được để "Chỉ mình tôi" → bỏ lựa chọn đó khỏi danh sách
   const privacyOptions = (merged?.privacyLevelOptions || [])
     .filter((p) => !(value.commercial && value.brandContent && p === 'SELF_ONLY'))
-    .map((p) => ({ value: p, label: TIKTOK_PRIVACY_LABELS[p] || p }));
+    .map((p) => ({ value: p, label: (tt.privacy as Record<string, string>)[p] || p }));
 
   // Lựa chọn hiện tại bị loại khỏi danh sách (đổi kênh / bật nội dung có tài trợ) → bắt chọn lại
   useEffect(() => {
@@ -71,18 +75,19 @@ export default function TikTokPostSettings({
   }, [merged, value.commercial, value.brandContent]);
 
   const set = (patch: Partial<TikTokComposerSettings>) => onChange({ ...value, ...patch });
-  const label = commercialLabel(value);
+  const labelKind = commercialLabelKind(value);
+  const label = labelKind === 'branded' ? tt.labelBranded : labelKind === 'organic' ? tt.labelOrganic : null;
 
   const interaction = [
-    { key: 'allowComment' as const, text: 'Bình luận', disabled: merged?.commentDisabled },
-    { key: 'allowDuet' as const, text: 'Duet', disabled: merged?.duetDisabled },
-    { key: 'allowStitch' as const, text: 'Stitch', disabled: merged?.stitchDisabled },
+    { key: 'allowComment' as const, text: tt.comment, disabled: merged?.commentDisabled },
+    { key: 'allowDuet' as const, text: tt.duet, disabled: merged?.duetDisabled },
+    { key: 'allowStitch' as const, text: tt.stitch, disabled: merged?.stitchDisabled },
   ];
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4 text-xs">
       <div className="flex items-center justify-between gap-2">
-        <p className="font-black text-slate-800 text-[13px]">Cài đặt TikTok</p>
+        <p className="font-black text-slate-800 text-[13px]">{tt.settingsTitle}</p>
         {loading && <Loader2 className="w-4 h-4 animate-spin text-slate-400" />}
       </div>
 
@@ -98,37 +103,37 @@ export default function TikTokPostSettings({
         ))}
       </div>
 
-      {error && (
+      {error !== null && (
         <div className="flex gap-2 rounded-lg bg-red-50 border border-red-200 p-2.5 text-red-700">
           <AlertTriangle className="w-4 h-4 shrink-0" />
-          <span>{error}</span>
+          <span>{error ? localizePublishError(error, lang, tt) : tt.loadError}</span>
         </div>
       )}
 
       {/* Quyền riêng tư — không chọn sẵn */}
       <div className="space-y-1">
-        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Ai có thể xem video</label>
+        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{tt.whoCanView}</label>
         <FilterSelect
           value={value.privacyLevel}
           onChange={(v) => set({ privacyLevel: v })}
           options={privacyOptions}
-          placeholder={loading ? 'Đang tải…' : 'Chọn ai có thể xem…'}
+          placeholder={loading ? tt.loading : tt.privacyPlaceholder}
           className="w-full"
         />
         {value.commercial && value.brandContent && (
-          <p className="text-[11px] text-slate-500 px-1">Nội dung có tài trợ không thể để chế độ "Chỉ mình tôi".</p>
+          <p className="text-[11px] text-slate-500 px-1">{tt.brandedNotSelfOnly}</p>
         )}
       </div>
 
       {/* Tương tác — mặc định tắt, người dùng tự bật */}
       <div className="space-y-1.5">
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Cho phép người xem</p>
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{tt.allowViewers}</p>
         <div className="flex flex-wrap gap-x-5 gap-y-2 px-1">
           {interaction.map((it) => (
             <label
               key={it.key}
               className={`flex items-center gap-2 font-semibold ${it.disabled ? 'text-slate-300 cursor-not-allowed' : 'text-slate-700 cursor-pointer'}`}
-              title={it.disabled ? 'Kênh đã tắt tính năng này trong cài đặt TikTok' : undefined}
+              title={it.disabled ? tt.disabledByCreator : undefined}
             >
               <input
                 type="checkbox"
@@ -147,8 +152,8 @@ export default function TikTokPostSettings({
       <div className="space-y-2 rounded-lg bg-slate-50 p-3">
         <label className="flex items-start justify-between gap-3 cursor-pointer">
           <span>
-            <span className="block font-bold text-slate-800">Công bố nội dung thương mại</span>
-            <span className="block text-[11px] text-slate-500">Bật nếu video quảng bá thương hiệu, sản phẩm hoặc dịch vụ.</span>
+            <span className="block font-bold text-slate-800">{tt.commercialTitle}</span>
+            <span className="block text-[11px] text-slate-500">{tt.commercialHint}</span>
           </span>
           <input
             type="checkbox"
@@ -161,11 +166,11 @@ export default function TikTokPostSettings({
           <div className="space-y-2 pl-1">
             <label className="flex items-start gap-2 cursor-pointer">
               <input type="checkbox" className="mt-0.5 w-4 h-4 accent-slate-900" checked={value.brandOrganic} onChange={(e) => set({ brandOrganic: e.target.checked })} />
-              <span><b className="text-slate-800">Thương hiệu của bạn</b><span className="block text-[11px] text-slate-500">Quảng bá chính bạn hoặc doanh nghiệp của bạn.</span></span>
+              <span><b className="text-slate-800">{tt.yourBrand}</b><span className="block text-[11px] text-slate-500">{tt.yourBrandHint}</span></span>
             </label>
             <label className="flex items-start gap-2 cursor-pointer">
               <input type="checkbox" className="mt-0.5 w-4 h-4 accent-slate-900" checked={value.brandContent} onChange={(e) => set({ brandContent: e.target.checked })} />
-              <span><b className="text-slate-800">Nội dung có tài trợ</b><span className="block text-[11px] text-slate-500">Hợp tác với thương hiệu khác để quảng bá cho họ.</span></span>
+              <span><b className="text-slate-800">{tt.brandedContent}</b><span className="block text-[11px] text-slate-500">{tt.brandedContentHint}</span></span>
             </label>
             {label && <p className="text-[11px] font-semibold text-amber-600">{label}</p>}
           </div>
@@ -173,19 +178,20 @@ export default function TikTokPostSettings({
       </div>
 
       {merged?.maxVideoPostDurationSec ? (
-        <p className="text-[11px] text-slate-500 px-1">Video tối đa {merged.maxVideoPostDurationSec} giây với kênh này.</p>
+        <p className="text-[11px] text-slate-500 px-1">{tt.maxDuration(merged.maxVideoPostDurationSec)}</p>
       ) : null}
 
       {/* Dòng đồng ý — TikTok bắt hiển thị trước nút đăng */}
       <p className="text-[11px] text-slate-500 leading-relaxed px-1">
-        Khi đăng, bạn đồng ý với{' '}
+        {tt.consentPrefix}{' '}
         {value.commercial && value.brandContent ? (
           <>
-            <a href={TIKTOK_BRANDED_POLICY_URL} target="_blank" rel="noreferrer" className="underline font-semibold">Chính sách nội dung có thương hiệu</a>{' '}và{' '}
+            <a href={TIKTOK_BRANDED_POLICY_URL} target="_blank" rel="noreferrer" className="underline font-semibold">{tt.brandedPolicy}</a>{' '}{tt.and}{' '}
           </>
         ) : null}
-        <a href={TIKTOK_MUSIC_POLICY_URL} target="_blank" rel="noreferrer" className="underline font-semibold">Xác nhận sử dụng âm nhạc</a>{' '}của TikTok.
-        {' '}Sau khi đăng, TikTok có thể mất vài phút để xử lý video trước khi hiện trên kênh.
+        <a href={TIKTOK_MUSIC_POLICY_URL} target="_blank" rel="noreferrer" className="underline font-semibold">{tt.musicPolicy}</a>
+        {tt.consentSuffix.startsWith('.') ? '' : ' '}{tt.consentSuffix}
+        {' '}{tt.processingNote}
       </p>
     </div>
   );

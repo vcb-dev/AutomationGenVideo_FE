@@ -11,6 +11,8 @@ import { useSocialAccounts, useInvalidateAccounts, SOCIAL_ACCOUNTS_KEY } from '@
 import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
 import { useSocialLang } from '@/contexts/SocialLanguageContext';
+import TikTokChannelStats from './components/TikTokChannelStats';
+import TikTokStatsModal from './components/TikTokStatsModal';
 
 // ─── Platform meta ─────────────────────────────────────────────────────────
 
@@ -80,6 +82,9 @@ export default function ChannelsPage() {
   useEffect(() => {
     if (error) toast.error(t.failedToLoad);
   }, [error, t.failedToLoad]);
+
+  // Kênh TikTok đang mở cửa sổ số liệu video
+  const [statsAccount, setStatsAccount] = useState<SocialAccount | null>(null);
 
   const loadAccounts = useCallback(async () => {
     await invalidateAccounts();
@@ -176,7 +181,7 @@ export default function ChannelsPage() {
     const popup = window.open('', `oauth-${platform}`, 'width=620,height=720,left=200,top=80');
 
     try {
-      const { url } = await socialApi.oauth.getUrl(platform, igMode ? { igMode } : undefined);
+      const { url } = await socialApi.oauth.getUrl(platform, { ...(igMode ? { igMode } : {}), lang });
 
       if (!popup) {
         toast.error(tRef.current.popupBlocked);
@@ -423,11 +428,11 @@ export default function ChannelsPage() {
                         <button
                           onClick={() => handleConnect('TIKTOK')}
                           disabled={connecting === 'TIKTOK'}
-                          title="Kết nối kênh TikTok của bạn để đăng video từ hệ thống"
+                          title={t.tiktok.connectTitle}
                           className="flex items-center gap-1.5 px-4 py-2 text-white text-sm font-semibold rounded-xl bg-black hover:bg-slate-800 transition-all shadow-sm hover:shadow-md active:scale-95 disabled:opacity-60"
                         >
                           {connecting === 'TIKTOK' ? <RefreshCw className="w-4 h-4 animate-spin" /> : meta.icon}
-                          {connecting === 'TIKTOK' ? t.connecting : 'Đăng nhập TikTok'}
+                          {connecting === 'TIKTOK' ? t.connecting : t.tiktok.connectButton}
                         </button>
                       </div>
                     )}
@@ -571,7 +576,7 @@ export default function ChannelsPage() {
                   <div className="px-4 md:px-8 py-5">
                     <div className="flex items-center justify-between mb-4">
                       <p className="text-sm font-semibold text-slate-600">
-                        Các kênh TikTok đã kết nối ({displayAccts.length})
+                        {t.tiktok.connectedList(displayAccts.length)}
                       </p>
                       <div className="flex items-center gap-2">
                         {/* Admin thấy kênh toàn công ty, leader thấy cả team — danh sách dài,
@@ -668,11 +673,16 @@ export default function ChannelsPage() {
                                   </a>
                                 )}
                               </div>
+
+                              {/* Số liệu kênh TikTok (video.list, user.info.stats) */}
+                              <div className="mb-3">
+                                <TikTokChannelStats account={account} onSynced={loadAccounts} onOpenVideos={setStatsAccount} />
+                              </div>
                             </div>
 
                             {/* Actions */}
                             <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                              <span className="text-[11px] text-slate-400 font-medium">Đăng nhập TikTok</span>
+                              <span className="text-[11px] text-slate-400 font-medium">{t.tiktok.cardSource}</span>
                               {canRemove(account) && (
                                 <button
                                   onClick={() => handleDisconnect(account)}
@@ -730,7 +740,7 @@ export default function ChannelsPage() {
                               {extra?.label || 'API Official'}
                               {account.platform === 'YOUTUBE' ? (
                                 <span className="ml-3 text-emerald-600 font-medium">
-                                  ✓ Tự động gia hạn
+                                  {t.autoRenew}
                                 </span>
                               ) : (
                                 account.token_expires_at && (
@@ -869,9 +879,9 @@ export default function ChannelsPage() {
                       : platform === 'TIKTOK'
                       ? (
                         <div className="max-w-md mx-auto space-y-3">
-                          <p className="text-slate-600 font-medium">Chưa có kênh TikTok nào được liên kết.</p>
+                          <p className="text-slate-600 font-medium">{t.tiktok.emptyTitle}</p>
                           <p className="text-xs text-slate-400 leading-relaxed">
-                            Bấm "Đăng nhập TikTok" ở trên để kết nối kênh và đăng video từ hệ thống.
+                            {t.tiktok.emptyHint}
                           </p>
                         </div>
                       )
@@ -884,6 +894,7 @@ export default function ChannelsPage() {
         )}
       </div>
 
+      {statsAccount && <TikTokStatsModal account={statsAccount} onClose={() => setStatsAccount(null)} />}
     </div>
   );
 }

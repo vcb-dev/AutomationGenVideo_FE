@@ -17,6 +17,7 @@ import { useAuthStore } from '@/store/auth-store';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 import { useSocialLang } from '@/contexts/SocialLanguageContext';
+import { usePublishErrorText } from '@/lib/social/use-publish-error-text';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -92,6 +93,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 export default function StatsPage() {
   const { user } = useAuthStore();
   const { t } = useSocialLang();
+  const errText = usePublishErrorText();
 
   // Phân quyền
   const isAdmin  = user?.roles?.some((r: string) => ['ADMIN', 'MANAGER'].includes(r)) ?? false;
@@ -1057,7 +1059,7 @@ export default function StatsPage() {
                             {post.error_msg && (
                               <p className="text-[10px] text-red-500 mt-0.5 truncate flex items-center gap-1">
                                 <AlertTriangle className="w-3 h-3 flex-shrink-0" />
-                                {post.error_msg.length > 80 ? post.error_msg.slice(0, 80) + '…' : post.error_msg}
+                                {(() => { const m = errText(post.error_msg); return m.length > 80 ? m.slice(0, 80) + '…' : m; })()}
                               </p>
                             )}
                           </div>

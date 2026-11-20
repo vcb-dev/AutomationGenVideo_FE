@@ -33,6 +33,12 @@ FACEBOOK,VCB 2,"Hôm nay ra mắt bộ sưu tập vàng 24K mới! 💛 Thiết 
 FACEBOOK,PNJ,"Quà tặng ý nghĩa cho ngày đặc biệt - Nhẫn vàng 18K cao cấp","#NhanVang #QuaTang #PNJ",,2026-05-10T10:00
 INSTAGRAM,VCB 2,"Khám phá vẻ đẹp của bộ trang sức đá quý tự nhiên ✨","#DaQuy #TrangSuc #Luxury",,2026-05-11T08:00`;
 
+/** File mẫu khi giao diện đang ở EN — cùng cột, nội dung tiếng Anh */
+const SAMPLE_CSV_EN = `platform,account_name,content,hashtags,media_url,scheduled_at
+FACEBOOK,VCB 2,"Our new 24K gold collection launches today! 💛 Elegant and refined design.","#VienChiBao #GoldJewelry #Jewelry",,2026-05-10T09:00
+FACEBOOK,PNJ,"A meaningful gift for a special day - premium 18K gold ring","#GoldRing #Gift #PNJ",,2026-05-10T10:00
+INSTAGRAM,VCB 2,"Discover the beauty of our natural gemstone jewelry ✨","#Gemstone #Jewelry #Luxury",,2026-05-11T08:00`;
+
 function parseCsv(text: string): CsvRow[] {
   const lines = text.trim().split('\n').filter(Boolean);
   if (lines.length < 2) return [];
@@ -80,7 +86,7 @@ function validateRow(row: CsvRow, accounts: any[], t: any): CsvRow {
 }
 
 export default function BulkSchedulePage() {
-  const { t } = useSocialLang();
+  const { lang, t } = useSocialLang();
   const { data: accounts = [] } = useSocialAccounts();
   const [rows, setRows]             = useState<CsvRow[]>([]);
   const [publishing, setPublishing] = useState(false);
@@ -157,9 +163,9 @@ export default function BulkSchedulePage() {
   };
 
   const downloadSample = () => {
-    const blob = new Blob([SAMPLE_CSV], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([lang === 'en' ? SAMPLE_CSV_EN : SAMPLE_CSV], { type: 'text/csv;charset=utf-8;' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = 'mau_bulk_schedule.csv'; a.click();
+    a.download = lang === 'en' ? 'bulk_schedule_sample.csv' : 'mau_bulk_schedule.csv'; a.click();
   };
 
   const statusIcon = (status?: string) => {

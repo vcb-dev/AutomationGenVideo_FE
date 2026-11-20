@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, X, Users, ExternalLink } from 'lucide-react';
 import { SocialPlatform, PLATFORM_META } from '@/lib/api/social';
 import { useSocialLang } from '@/contexts/SocialLanguageContext';
+import { usePublishErrorText } from '@/lib/social/use-publish-error-text';
 
 interface Channel {
   id: string;
@@ -47,6 +48,7 @@ function fmtTime(s: number) {
 
 export default function PublishProgressModal({ publishProgress, postingPcts, elapsedSeconds, onClose }: Props) {
   const { t } = useSocialLang();
+  const errText = usePublishErrorText();
   const { channels, phase } = publishProgress;
   const doneCount    = channels.filter(c => c.status === 'success' || c.status === 'fail').length;
   const totalCount   = channels.length;
@@ -213,8 +215,8 @@ export default function PublishProgressModal({ publishProgress, postingPcts, ela
                                 : t.publishProgress.waitingLabel}
                           </p>
                           {ch.error && (
-                            <p className="text-[10px] text-red-500 mt-1 font-medium leading-relaxed" title={ch.error}>
-                              {ch.error.split(/\s*\|\s*stack:|\s*stack:/i)[0]}
+                            <p className="text-[10px] text-red-500 mt-1 font-medium leading-relaxed" title={errText(ch.error)}>
+                              {errText(ch.error).split(/\s*\|\s*stack:|\s*stack:/i)[0]}
                             </p>
                           )}
                         </div>

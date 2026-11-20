@@ -34,6 +34,35 @@ export interface TikTokCreatorInfo {
   maxVideoPostDurationSec: number | null;
 }
 
+export interface TikTokChannelStats {
+  followers: number;
+  following: number;
+  likes: number;
+  videoCount: number;
+  username: string | null;
+  displayName: string | null;
+  syncedAt: string;
+}
+
+export interface TikTokVideoStat {
+  postId: string;
+  title: string | null;
+  url: string | null;
+  publishedAt: string | null;
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+}
+
+export interface TikTokStatsResponse {
+  accountId: string;
+  hasStatsScope: boolean;
+  stats: TikTokChannelStats | null;
+  videos: TikTokVideoStat[];
+  totals: { views: number; likes: number; comments: number; shares: number };
+}
+
 export interface SocialPostResult {
   postId?: string;
   videoId?: string;
@@ -153,9 +182,14 @@ export const socialApi = {
 
   oauth: {
     // igMode='direct' (chỉ Instagram): dùng Instagram Login trực tiếp, không cần FB Page
-    getUrl: (platform: SocialPlatform, opts?: { igMode?: 'direct' }) =>
+    // lang='en': BE thêm tham số ngôn ngữ cho trang đăng nhập (TikTok lang=en, Google hl=en).
+    // Meta (Facebook/Instagram/Threads) không nhận tham số này — hiện theo ngôn ngữ tài khoản Facebook.
+    getUrl: (platform: SocialPlatform, opts?: { igMode?: 'direct'; lang?: 'vi' | 'en' }) =>
       apiClient.get<{ url: string }>(`/social/oauth/${platform.toLowerCase()}/url`, {
-        params: opts?.igMode ? { igMode: opts.igMode } : undefined,
+        params: {
+          ...(opts?.igMode ? { igMode: opts.igMode } : {}),
+          ...(opts?.lang ? { lang: opts.lang } : {}),
+        },
       }).then((r) => r.data),
   },
 
@@ -163,6 +197,12 @@ export const socialApi = {
     /** Thông tin kênh TikTok cho màn soạn bài (quyền riêng tư được chọn, tương tác bị tắt, giới hạn thời lượng) */
     creatorInfo: (accountId: string): Promise<TikTokCreatorInfo> =>
       apiClient.get(`/social/publish/tiktok/${accountId}/creator-info`).then((r) => r.data),
+    /** Số liệu kênh + video đã đồng bộ (không gọi TikTok) */
+    stats: (accountId: string): Promise<TikTokStatsResponse> =>
+      apiClient.get(`/social/tiktok/${accountId}/stats`).then((r) => r.data),
+    /** Đồng bộ ngay từ TikTok rồi trả số liệu mới */
+    syncStats: (accountId: string): Promise<TikTokStatsResponse> =>
+      apiClient.post(`/social/tiktok/${accountId}/sync`, {}, { timeout: 300000 }).then((r) => r.data),
   },
 
   publish: {
