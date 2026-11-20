@@ -50,6 +50,21 @@ function discardTaskVideo(taskId: string, qc: QueryClient) {
     })
 }
 
+/** Bọc uploader gửi khúc: người dùng huỷ thì dừng gửi, tiến độ (progress) chuyển thẳng cho uploader gốc. */
+export function abortablePartUploader(direct: PartUploader, signal: AbortSignal, cancelled: () => Error): PartUploader {
+  return {
+    sendPart: async (partNumber, chunk) => {
+      if (signal.aborted) throw cancelled()
+      try {
+        await direct.sendPart(partNumber, chunk)
+      } catch (err) {
+        throw signal.aborted ? cancelled() : err
+      }
+    },
+    progress: direct.progress,
+  }
+}
+
 async function uploadVideoToServer(
   taskId: string,
   file: File,
@@ -65,18 +80,7 @@ async function uploadVideoToServer(
       })
       .then(r => r.data)
 
-    const direct = createDirectPartUploader(partUploadUrl, file.name)
-    const uploader: PartUploader = {
-      sendPart: async (partNumber, chunk) => {
-        if (signal.aborted) throw cancelled()
-        try {
-          await direct.sendPart(partNumber, chunk)
-        } catch (err) {
-          throw signal.aborted ? cancelled() : err
-        }
-      },
-      uploadedParts: direct.uploadedParts,
-    }
+    const uploader = abortablePartUploader(createDirectPartUploader(partUploadUrl, file.name), signal, cancelled)
     try {
       await Promise.race([
         uploadInParts(file, chunkSize, uploader, { onProgress: pct => { if (!signal.aborted) onProgress(pct) } }),
