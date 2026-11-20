@@ -32,6 +32,8 @@ interface ThreadsHotPostCardProps {
   onSavePost?: (post: ThreadsPost) => void;
   isSaving?: boolean;
   onExploreAuthor?: (username: string) => void;
+  /** Bấm tag chủ đề trên bài ("› trang sức") để lọc theo tag đó. */
+  onTagClick?: (tag: string) => void;
 }
 
 export default function ThreadsHotPostCard({
@@ -39,6 +41,7 @@ export default function ThreadsHotPostCard({
   onSavePost,
   isSaving,
   onExploreAuthor,
+  onTagClick,
 }: ThreadsHotPostCardProps) {
   const [copied, setCopied] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
@@ -102,6 +105,18 @@ export default function ThreadsHotPostCard({
                 </span>
                 <span className="text-[11px] text-slate-500 truncate">
                   @{authorUsername || 'threads_user'}
+                  {post.topic_tag && (
+                    // Như trên Threads: "người đăng › trang sức"
+                    <button
+                      type="button"
+                      onClick={() => onTagClick?.(post.topic_tag!)}
+                      disabled={!onTagClick}
+                      title={onTagClick ? `Lọc bài theo tag "${post.topic_tag}"` : undefined}
+                      className="ml-1 font-medium text-slate-600 dark:text-slate-300 hover:text-primary disabled:hover:text-slate-600 disabled:cursor-default"
+                    >
+                      › {post.topic_tag}
+                    </button>
+                  )}
                 </span>
               </div>
             </div>

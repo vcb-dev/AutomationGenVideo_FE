@@ -218,7 +218,7 @@ export default function BulkAddThreadsModal({
               disabled={isLoading}
               rows={6}
               placeholder={`@lilbieber
-https://www.threads.net/@zuck
+https://www.threads.com/@zuck
 mixigaming
 pnj_jewelry
 ...`}

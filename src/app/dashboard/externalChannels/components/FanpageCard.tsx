@@ -3,6 +3,7 @@
 import { Users, Heart, VideoCamera, ArrowsClockwise, BookmarkSimple, Timer, ArrowSquareOut, CircleNotch, Tag, Sparkle, ShoppingBag } from '@phosphor-icons/react';
 import { ScrapedFanpage } from '@/services/scraperService';
 import DeleteChannelButton from './DeleteChannelButton';
+import { fanpageAvatarSrc } from '@/lib/scrape/fanpage-avatar';
 
 interface FanpageCardProps {
   fanpage: ScrapedFanpage;
@@ -78,9 +79,9 @@ export default function FanpageCard({
         <div className="flex items-center gap-3 p-3.5 pb-2">
           <div className="w-11 h-11 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white overflow-hidden flex-shrink-0 ring-2 ring-slate-200 dark:ring-slate-600 relative flex items-center justify-center font-bold text-base shadow-sm select-none">
             {fp.name ? fp.name.trim().charAt(0).toUpperCase() : <Users size={20} />}
-            {(fp.avatar_url && fp.avatar_url !== 'FAILED') || fp.profile_id ? (
+            {fanpageAvatarSrc(fp) ? (
               <img
-                src={fp.avatar_url || `https://graph.facebook.com/${fp.profile_id}/picture?type=large`}
+                src={fanpageAvatarSrc(fp)!}
                 alt={fp.name}
                 referrerPolicy="no-referrer"
                 className="absolute inset-0 w-full h-full object-cover"
